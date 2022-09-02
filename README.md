@@ -22,17 +22,17 @@ see se3_example.cpp for more details.
 
 ### 2.1 Differential Flatness
 
-Calculate $\boldsymbol{q}_d$ and $\boldsymbol{\omega}_d$ through $\boldsymbol{a}_{cmd}$, $\boldsymbol{j}_{cmd}$, $\psi$ and $\dot{\psi}$.
+Calculate $\boldsymbol{q}_{d}$ and $\boldsymbol{\omega}_{d}$ through $\boldsymbol{a}_{cmd}$ , $\boldsymbol{j}_{cmd}$ , $\psi$ and $\dot{\psi}$ .
 
 $$
 \begin{aligned}
-\boldsymbol{\alpha} &= \boldsymbol{a}_{cmd}+g \boldsymbol{z}_{\mathcal{w}}\\
+\boldsymbol{\alpha} &= \boldsymbol{a}_{cmd}+g \boldsymbol{z}_{\mathcal{w}} \\
 \boldsymbol{x}_{\mathcal{c}} &=[\cos \psi, \sin \psi, 0]^T \\
 \boldsymbol{y}_{\mathcal{C}} &=[-\sin \psi, \cos \psi, 0]^T \\
 \boldsymbol{x}_{\mathcal{B}} &=\frac{\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{\alpha}}{\left\|\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{\alpha}\right\|} \\
 \boldsymbol{y}_{\mathcal{B}} &=\frac{\boldsymbol{\alpha} \times \boldsymbol{x}_{\mathcal{B}}}{\left\|\boldsymbol{\alpha} \times \boldsymbol{x}_{\mathcal{B}}\right\|} \\
 \boldsymbol{z}_{\mathcal{B}} &=\boldsymbol{x}_{\mathcal{B}} \times \boldsymbol{y}_{\mathcal{B}} \\
-\boldsymbol{q}_d &= Quaternion([\boldsymbol{x}_{\mathcal{B}}, \boldsymbol{y}_{\mathcal{B}}, \boldsymbol{z}_{\mathcal{B}}])\\
+\boldsymbol{q}_d &= Quaternion([\boldsymbol{x}_{\mathcal{B}}, \boldsymbol{y}_{\mathcal{B}}, \boldsymbol{z}_{\mathcal{B}}]) \\
 a_z &=\boldsymbol{z}_{\mathcal{B}}^T\left( \boldsymbol{a}+g \boldsymbol{z}_{\mathcal{W}}\right) \\
 \boldsymbol{\omega}_d &=
 \left[\begin{array}{ccc}
@@ -42,7 +42,7 @@ a_z & 0 & 0 \\
 \end{array}\right]^{-1} 
 \left[\begin{array}{c}
  \boldsymbol{x}_{\mathcal{B}}^T \boldsymbol{j}_{cmd} \\
-- \boldsymbol{y}_{\mathcal{B}}^T \boldsymbol{j}_{cmd} \\
+-\boldsymbol{y}_{\mathcal{B}}^T \boldsymbol{j}_{cmd} \\
 \dot{\psi} \boldsymbol{x}_{\mathcal{C}}^T \boldsymbol{x}_B
 \end{array}\right]
 \end{aligned}
