@@ -1,4 +1,4 @@
-# SE(3) Controler for Quadrotor
+# SE(3) Controller for Quadrotor
 
 
 
@@ -22,12 +22,12 @@ see se3_example.cpp for more details.
 
 ### 2.1 Differential Flatness
 
-Calculate $\boldsymbol{q}_{d}$ and $\boldsymbol{\omega}_{d}$ through $\boldsymbol{a}_{cmd}$ , $\boldsymbol{j}_{cmd}$ , $\psi$ and $\dot{\psi}$ .
+Calculate $ \boldsymbol{q}_{d} $ and $ \boldsymbol{\omega}_{d} $ through $ \boldsymbol{a}_{cmd} $ , $ \boldsymbol{j}_{cmd} $ , $\psi$ and $\dot{\psi}$ .
 
 $$
 \begin{aligned}
-\boldsymbol{\alpha} &= \boldsymbol{a}_{cmd}+g \boldsymbol{z}_{\mathcal{w}} \\
-\boldsymbol{x}_{\mathcal{c}} &=[\cos \psi, \sin \psi, 0]^T \\
+\boldsymbol{\alpha} &= \boldsymbol{a}_{cmd} + g \boldsymbol{z}_{\mathcal{w}} \\
+\boldsymbol{x}_{\mathcal{C}} &=[\cos \psi, \sin \psi, 0]^T \\
 \boldsymbol{y}_{\mathcal{C}} &=[-\sin \psi, \cos \psi, 0]^T \\
 \boldsymbol{x}_{\mathcal{B}} &=\frac{\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{\alpha}}{\left\|\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{\alpha}\right\|} \\
 \boldsymbol{y}_{\mathcal{B}} &=\frac{\boldsymbol{\alpha} \times \boldsymbol{x}_{\mathcal{B}}}{\left\|\boldsymbol{\alpha} \times \boldsymbol{x}_{\mathcal{B}}\right\|} \\
@@ -56,7 +56,7 @@ $$
 \begin{aligned}
 &e_p=p-p_d \\
 &e_v=v-v_d \\
-&e_a=-k_{p,p} e_p-k_{p,v} e_v-k_{d,p} \dot{e}_p-k_{p,d} \dot{e}_v \\
+&e_a=-k_{p,p} e_p-k_{p,v} e_v-k_{d,p} \dot{e}_p - k_{p,d} \dot{e}_v \\
 &e_q=\left(\boldsymbol{q} \otimes \boldsymbol{q}_{d}^{-1}\right)_{x, y, z} \\
 &e_{\omega}=\omega-R^T R_d \omega_d
 \end{aligned}
