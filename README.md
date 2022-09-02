@@ -23,6 +23,7 @@ see se3_example.cpp for more details.
 ### 2.1 Differential Flatness
 
 Calculate $\boldsymbol{q}_d$ and $\boldsymbol{\omega}_d$ through $\boldsymbol{a}_{cmd}$, $\boldsymbol{j}_{cmd}$, $\psi$ and $\dot{\psi}$.
+
 $$
 \begin{aligned}
 \boldsymbol{\alpha} &= \boldsymbol{a}_{cmd}+g \boldsymbol{z}_{\mathcal{w}}\\
@@ -33,7 +34,6 @@ $$
 \boldsymbol{z}_{\mathcal{B}} &=\boldsymbol{x}_{\mathcal{B}} \times \boldsymbol{y}_{\mathcal{B}} \\
 \boldsymbol{q}_d &= Quaternion([\boldsymbol{x}_{\mathcal{B}}, \boldsymbol{y}_{\mathcal{B}}, \boldsymbol{z}_{\mathcal{B}}])\\
 a_z &=\boldsymbol{z}_{\mathcal{B}}^T\left( \boldsymbol{a}+g \boldsymbol{z}_{\mathcal{W}}\right) \\
-
 \boldsymbol{\omega}_d &=
 \left[\begin{array}{ccc}
 0 & a_z & 0 \\
@@ -47,6 +47,7 @@ a_z & 0 & 0 \\
 \end{array}\right]
 \end{aligned}
 $$
+
 see "Differential Flatness  of Quadrotor Dynamics Subject to Rotor Drag for Accurate Tracking of  High-Speed Trajectories" or "Control of Quadrotors Using the Hopf Fibration on SO(3)" for more details.
 
 ### 2.2 Control Law-PD control
@@ -62,6 +63,7 @@ $$
 $$
 
 Where, subscript d indicates that it's the desired value.
+
 $$
 \begin{aligned}
 a_{cmd}&=a_d-k_{p,p} e_p-k_{p,v} e_v-k_{d,p} \dot{e}_p-k_{p,d} \dot{e}_v + g e_3 \\
@@ -74,17 +76,22 @@ $$
 ### 2.3 Thrust Normalization
 
 Assume that
+
 $$
 t_{cmd}=\frac{a_{z,cmd}}{T_a}
 $$
+
 where $T_a$ is the normalization constant, which is determined by the physical characteristics of the quadrotor, and can be estimated by Kalman filtering
+
 $$
 \begin{aligned}
 x_k&=T_{a,k} \\
 z_k&=a_z=t_{cmd}*T_{a,k}
 \end{aligned}
 $$
+
 Then
+
 $$
 \begin{aligned}
 \breve{P}_k&=1/\rho \\
@@ -93,7 +100,6 @@ K_k&=\frac{\breve{P}_k\cdot t_{cmd}}{t_{cmd}\times \breve{P}_k\cdot t_{cmd}+\rho
 P_k&=(1-K_k\cdot t_{cmd})\cdot \breve{P}_k \\
 \end{aligned}
 $$
-
 
 ## Reference
 
