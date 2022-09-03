@@ -4,8 +4,9 @@
 #include <sensor_msgs/Imu.h>
 #include <nav_msgs/Odometry.h>
 
-// #define TRACK_TRAJ
-// #define ACHIEVE_POINT
+
+#define VEL_IN_BODY /* cancel the comment if the velocity in odom topic is relative to current body frame, not to world frame.*/
+
 
 struct Odom_Data_t{
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -42,6 +43,10 @@ struct Odom_Data_t{
 		w(0) = msg.twist.twist.angular.x;
 		w(1) = msg.twist.twist.angular.y;
 		w(2) = msg.twist.twist.angular.z;
+
+		#ifdef VEL_IN_BODY 
+		v = q.toRotationMatrix() * v;
+		#endif
 	}
 };
 
@@ -147,10 +152,11 @@ private:
 	double P_ = 1e6;
 	const double rho_ = 0.998; // confidence
 	const double gravity_ = 9.81;
+	static constexpr double kAlmostZeroValueThreshold_ = 0.001;
 	Eigen::Vector3d grav_vec_, last_err_p_, last_err_v_, last_err_a_, last_err_q_, last_err_w_;
 	std::queue<std::pair<ros::Time, double>> timed_thrust_;
 
-	void differential_flatness(Desired_State_t desired_state, Odom_Data_t &desired_odom,  Eigen::Vector3d acc, Odom_Data_t odom_data, Imu_Data_t imu_data){
+	void computeFlatInput(Desired_State_t desired_state, Odom_Data_t &desired_odom){
 		
 		desired_odom.p = desired_state.p;
 		desired_odom.v = desired_state.v;
@@ -178,22 +184,99 @@ private:
 		// #ifdef TRACK_TRAJ
 		Eigen::Vector3d xc(cos(desired_state.yaw), sin(desired_state.yaw), 0);
 		Eigen::Vector3d yc(-sin(desired_state.yaw), cos(desired_state.yaw), 0);
-		Eigen::Vector3d alpha = desired_state.a + grav_vec_;
-		Eigen::Vector3d xb = yc.cross(alpha);
+
+		Eigen::Vector3d zb = desired_state.a.normalized();
+		Eigen::Vector3d xb = yc.cross(zb);
 		xb.normalize();
-		Eigen::Vector3d yb = alpha.cross(xb);
+		Eigen::Vector3d yb = zb.cross(xb);
 		yb.normalize();
-		Eigen::Vector3d zb = xb.cross(yb);
+		
+		
+		// Eigen::Vector3d xb = yc.cross(desired_state.a);
+		// xb.normalize();
+		// Eigen::Vector3d yb = desired_state.a.cross(xb);
+		// yb.normalize();
+		// Eigen::Vector3d zb = xb.cross(yb);
 		Eigen::Matrix3d rotM;
 		rotM << xb, yb, zb;
 		desired_odom.q = Eigen::Quaterniond(rotM);
 
-		double a_zb = zb.dot(alpha);
+		double a_zb = zb.dot(desired_state.a);
 		desired_odom.w(0) = -yb.dot(desired_state.j) / a_zb;
 		desired_odom.w(1) = xb.dot(desired_state.j) / a_zb;
 		desired_odom.w(2) = desired_state.yaw_rate * xc.dot(xb) + yc.dot(zb) * desired_odom.w(1);
 		desired_odom.w(2) /= (yc.cross(zb)).norm();
-		// #endif
+	}
+
+	void computeFlatInput_Hopf_Fibration(Desired_State_t desired_state, Odom_Data_t &desired_odom){
+		Eigen::Vector3d aa_zb = desired_state.a.normalized();
+		double a = aa_zb(0), b = aa_zb(1), c = aa_zb(2);
+		double norm = sqrt(2 * (1 + c));
+		double yaw = desired_state.yaw;
+		if(c > 0){
+			Eigen::Quaterniond q((1 + c) / norm, -b / norm, a / norm, 0);
+			Eigen::Quaterniond q_yaw(cos(yaw / 2), 0, 0, sin(yaw / 2));
+			desired_odom.q = q * q_yaw;
+		}else{
+			Eigen::Quaterniond q(-b / norm, (1 - c) / norm, 0, a / norm);
+			yaw += 2 * atan2(a, b);
+			Eigen::Quaterniond q_yaw(cos(yaw / 2), 0, 0, sin(yaw / 2));
+			desired_odom.q = q * q_yaw;
+		}
+
+		Eigen::Matrix3d rotM = desired_odom.q.toRotationMatrix();
+		Eigen::Vector3d xb = rotM.col(0);
+		Eigen::Vector3d yb = rotM.col(1);
+		Eigen::Vector3d zb = rotM.col(2);
+		Eigen::Vector3d xc(cos(desired_state.yaw), sin(desired_state.yaw), 0);
+		Eigen::Vector3d yc(-sin(desired_state.yaw), cos(desired_state.yaw), 0);
+
+		double a_zb = zb.dot(desired_state.a);
+		desired_odom.w(0) = -yb.dot(desired_state.j) / a_zb;
+		desired_odom.w(1) = xb.dot(desired_state.j) / a_zb;
+		desired_odom.w(2) = desired_state.yaw_rate * xc.dot(xb) + yc.dot(zb) * desired_odom.w(1);
+		desired_odom.w(2) /= (yc.cross(zb)).norm();
+	}
+
+	void normalizeWithGrad(const Eigen::Vector3d &x, const Eigen::Vector3d &xd, Eigen::Vector3d &xNor, Eigen::Vector3d &xNord) const
+	{
+		const double xSqrNorm = x.squaredNorm();
+		const double xNorm = sqrt(xSqrNorm);
+		xNor = x / xNorm;
+		xNord = (xd - x * (x.dot(xd) / xSqrNorm)) / xNorm;
+		return;
+	}
+
+	void computeFlatInput_WZP(Desired_State_t desired_state, Odom_Data_t &desired_odom, Odom_Data_t odom_data) const
+	{
+		static Eigen::Vector3d omg_old(0.0, 0.0, 0.0);
+		Eigen::Vector3d zb, zbd;
+		normalizeWithGrad(desired_state.a, desired_state.j, zb, zbd);
+		double syaw = sin(desired_state.yaw);
+		double cyaw = cos(desired_state.yaw);
+		Eigen::Vector3d xc(cyaw, syaw, 0.0);
+		Eigen::Vector3d xcd(-syaw * desired_state.yaw_rate, cyaw * desired_state.yaw_rate, 0.0);
+		Eigen::Vector3d yc = zb.cross(xc);
+		if (yc.norm() < kAlmostZeroValueThreshold_){
+			ROS_WARN("Conor case, pitch is close to 90 deg");
+			desired_odom.q = odom_data.q;
+			desired_odom.w = omg_old;
+		}
+		else{
+			Eigen::Vector3d ycd = zbd.cross(xc) + zb.cross(xcd);
+			Eigen::Vector3d yb, ybd;
+			normalizeWithGrad(yc, ycd, yb, ybd);
+			Eigen::Vector3d xb = yb.cross(zb);
+			Eigen::Vector3d xbd = ybd.cross(zb) + yb.cross(zbd);
+			desired_odom.w(0) = (zb.dot(ybd) - yb.dot(zbd)) / 2.0;
+			desired_odom.w(1) = (xb.dot(zbd) - zb.dot(xbd)) / 2.0;
+			desired_odom.w(2) = (yb.dot(xbd) - xb.dot(ybd)) / 2.0;
+			Eigen::Matrix3d rotM;
+			rotM << xb, yb, zb;
+			desired_odom.q = Eigen::Quaterniond(rotM);
+			omg_old = desired_odom.w;
+		}
+		return;
 	}
 
 	double fromQuaternion2yaw(Eigen::Quaterniond q){
@@ -234,32 +317,34 @@ public:
 		have_last_err_ = false;
 	}
 
-	void run(Odom_Data_t odom_data, Imu_Data_t imu_data, Desired_State_t desired_state, Controller_Output_t &output){
+	void calControl(Odom_Data_t odom_data, Imu_Data_t imu_data, Desired_State_t desired_state, Controller_Output_t &output){
 		if((ros::Time::now() - odom_data.rcv_stamp).toSec() > 0.1){
 			std::cout << "odom not rcv" << std::endl;
 			return;
 		}
 		Eigen::Vector3d err_p = odom_data.p - desired_state.p;
 		limitErr(err_p, -1.0, 1.0);
-		Eigen::Vector3d err_v = odom_data.v - desired_state.v;
-		limitErr(err_v, -1.0, 1.0);
-		if(have_last_err_ == false){
+		if(have_last_err_ == false)
 			last_err_p_ = err_p;
-			last_err_v_ = err_v;
-		}
 		Eigen::Vector3d d_err_p = err_p - last_err_p_;
 		limitErr(d_err_p, -1.0, 1.0);
+		desired_state.v = desired_state.v - Kp_p_.asDiagonal() * err_p - Kd_p_.asDiagonal() * d_err_p;
+		Eigen::Vector3d err_v = odom_data.v - desired_state.v;
+		limitErr(err_v, -1.0, 1.0);
+		if(have_last_err_ == false)
+			last_err_v_ = err_v;
 		Eigen::Vector3d d_err_v = err_v - last_err_v_;
 		limitErr(d_err_v, -1.0, 1.0);
-		Eigen::Vector3d acc = desired_state.a - Kp_p_.asDiagonal() * err_p - Kp_v_.asDiagonal() * err_v - Kd_p_.asDiagonal() * d_err_p - Kd_v_.asDiagonal() * d_err_v + grav_vec_;
-		desired_state.a = acc - grav_vec_;
-		// std::cout << std::endl << "err_p: " << err_p.transpose() << std::endl;
-		// std::cout << std::endl << "err_v: " << err_v.transpose() << std::endl;
-		Eigen::Vector3d err_a = acc - grav_vec_ - desired_state.a;
+		desired_state.a = desired_state.a - Kp_v_.asDiagonal() * err_v - Kd_v_.asDiagonal() * d_err_v + grav_vec_;
+		// std::cout << "err_p: " << err_p.transpose() << std::endl;
+		// std::cout << "err_v: " << err_v.transpose() << std::endl;
+		// std::cout << "imu_data.a: " << imu_data.a.transpose() << std::endl;
+		// std::cout << "odom_data.v: " << odom_data.v.transpose() << std::endl;
+		Eigen::Vector3d a_world = odom_data.q.toRotationMatrix() * imu_data.a;
+		Eigen::Vector3d err_a = a_world - desired_state.a;
 		limitErr(err_a, -1.0, 1.0);
-		if(have_last_err_ == false){
+		if(have_last_err_ == false)
 			last_err_a_ = err_a;
-		}
 		Eigen::Vector3d d_err_a = err_a - last_err_a_;
 		limitErr(d_err_a, -1.0, 1.0);
 		desired_state.j = desired_state.j - Kp_a_.asDiagonal() * err_a - Kd_a_.asDiagonal() * d_err_a;
@@ -268,14 +353,36 @@ public:
 		last_err_v_ = err_v;
 		last_err_a_ = err_a;
 		
-		double thr = acc.transpose() * (odom_data.q * Eigen::Vector3d::UnitZ());
+		double thr = desired_state.a.transpose() * (odom_data.q * Eigen::Vector3d::UnitZ());
 		output.thrust = thr / T_a_;
-		// std::cout << std::endl << "T_a: " << T_a_ << std::endl;
-		// std::cout << "acc: " << acc.transpose() << std::endl;
+		std::cout << std::endl << "desired_state.a: " << desired_state.a.transpose() << std::endl;
+		// std::cout << "desired_state.a: " << desired_state.a.transpose() << std::endl;
 		
 		Odom_Data_t desired_odom;
-		differential_flatness(desired_state, desired_odom, acc, odom_data, imu_data);
-		
+		// computeFlatInput(desired_state, desired_odom);
+		computeFlatInput_Hopf_Fibration(desired_state, desired_odom);
+		// computeFlatInput_WZP(desired_state, desired_odom, odom_data);
+		output.q = imu_data.q * odom_data.q.inverse() * desired_odom.q; // Align with FCU frame
+		// output.q = desired_odom.q;
+		// printf("desired q: (%lf,%lf,%lf,%lf)\n", output.q.w(), output.q.x(), output.q.y(), output.q.z());
+		// std::cout << "desired q: " << desired_state.a.transpose() << std::endl;
+
+		// Eigen::Quaterniond err_q = odom_data.q.inverse() * desired_state.q;
+		// Eigen::Vector3d err_br;
+		// if (err_q.w() >= 0){
+		// 	err_br.x() = Kp_q_(0) * err_q.x();
+		// 	err_br.y() = Kp_q_(1) * err_q.y();
+		// 	err_br.z() = Kp_q_(2) * err_q.z();
+		// }
+		// else
+		// {
+		// 	err_br.x() = -Kp_q_(0) * err_q.x();
+		// 	err_br.y() = -Kp_q_(1) * err_q.y();
+		// 	err_br.z() = -Kp_q_(2) * err_q.z();
+		// }
+
+		// output.bodyrates = desired_odom.w + err_br;
+
 		Eigen::Vector3d err_q = (odom_data.q * (desired_odom.q.inverse())).vec();
 		limitErr(err_q, -1.0, 1.0);
 		// Eigen::Vector3d err_w = odom_data.w - odom_data.q.matrix().transpose() * desired_odom.q.matrix() * desired_odom.w;
@@ -291,8 +398,8 @@ public:
 		Eigen::Vector3d d_err_w = err_w - last_err_w_;
 		limitErr(d_err_w, -1.0, 1.0);
 		output.bodyrates = desired_odom.w - Kp_q_.asDiagonal() * err_q - Kp_w_.asDiagonal() * err_w - Kd_q_.asDiagonal() * d_err_q - Kd_w_.asDiagonal() * d_err_w;
-		// std::cout << "thrust: " << output.thrust << std::endl;
-		// std::cout << "bodyrates: " << output.bodyrates.transpose() << std::endl;
+		std::cout << "thrust: " << output.thrust << std::endl;
+		std::cout << "bodyrates: " << output.bodyrates.transpose() << std::endl;
 		last_err_q_ = err_q;
 		last_err_w_ = err_w;
 

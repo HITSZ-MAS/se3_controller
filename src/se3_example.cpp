@@ -34,15 +34,23 @@ private:
 
         Controller_Output_t output;
         Desired_State_t desired_state;
-        desired_state.p(2) = 1;
-        se3_controller_.run(odom_data_, imu_data_, desired_state, output);
+        desired_state.p(0) = 10;
+        desired_state.p(1) = 5;
+        desired_state.p(2) = 2;
+        desired_state.yaw = M_PI_2;
+        se3_controller_.calControl(odom_data_, imu_data_, desired_state, output);
         mavros_msgs::AttitudeTarget cmd;
         cmd.header.stamp = ros::Time::now();
         cmd.body_rate.x = output.bodyrates(0);
         cmd.body_rate.y = output.bodyrates(1);
         cmd.body_rate.z = output.bodyrates(2);
+        cmd.orientation.w = output.q.w();
+        cmd.orientation.x = output.q.x();
+        cmd.orientation.y = output.q.y();
+        cmd.orientation.z = output.q.z();
         cmd.thrust = output.thrust;
-        cmd.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
+        // cmd.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
+        cmd.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE + mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE + mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
         cmd_pub_.publish(cmd);
         if(state_.mode == mavros_msgs::State::MODE_PX4_OFFBOARD && state_.armed == true)
             se3_controller_.estimateTa(imu_data_.a);
@@ -60,16 +68,16 @@ public:
 
         exec_timer_ = nh.createTimer(ros::Duration(0.01), &SE3_EXAMPLE::execFSMCallback, this);
 
-        kp_p_ << 2.0, 2.0, 2.0;
+        kp_p_ << 1.5, 1.5, 1.5;
         kp_v_ << 1.5, 1.5, 1.5;
-        kp_a_ << 3.5, 3.5, 3.5;
-        kp_q_ << 3.0, 3.0, 3.0;
-        kp_w_ << 0.5, 0.5, 0.5;
+        kp_a_ << 1.5, 1.5, 1.5;
+        kp_q_ << 5.5, 5.5, 0.1;
+        kp_w_ << 1.5, 1.5, 0.1;
 
-        kd_p_ << 0.5, 0.5, 0.5;
+        kd_p_ << 0.0, 0.0, 0.0;
         kd_v_ << 0.0, 0.0, 0.0;
-        kd_a_ << 0.5, 0.5, 0.5;
-        kd_q_ << 0.5, 0.5, 0.5;
+        kd_a_ << 0.0, 0.0, 0.0;
+        kd_q_ << 0.0, 0.0, 0.0;
         kd_w_ << 0.0, 0.0, 0.0;
 
         hover_percent_ = 0.7;
