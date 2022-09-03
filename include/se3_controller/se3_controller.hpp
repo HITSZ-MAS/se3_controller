@@ -367,41 +367,51 @@ public:
 		// printf("desired q: (%lf,%lf,%lf,%lf)\n", output.q.w(), output.q.x(), output.q.y(), output.q.z());
 		// std::cout << "desired q: " << desired_state.a.transpose() << std::endl;
 
-		// Eigen::Quaterniond err_q = odom_data.q.inverse() * desired_state.q;
-		// Eigen::Vector3d err_br;
-		// if (err_q.w() >= 0){
-		// 	err_br.x() = Kp_q_(0) * err_q.x();
-		// 	err_br.y() = Kp_q_(1) * err_q.y();
-		// 	err_br.z() = Kp_q_(2) * err_q.z();
-		// }
-		// else
-		// {
-		// 	err_br.x() = -Kp_q_(0) * err_q.x();
-		// 	err_br.y() = -Kp_q_(1) * err_q.y();
-		// 	err_br.z() = -Kp_q_(2) * err_q.z();
-		// }
-
-		// output.bodyrates = desired_odom.w + err_br;
-
-		Eigen::Vector3d err_q = (odom_data.q * (desired_odom.q.inverse())).vec();
-		limitErr(err_q, -1.0, 1.0);
-		// Eigen::Vector3d err_w = odom_data.w - odom_data.q.matrix().transpose() * desired_odom.q.matrix() * desired_odom.w;
-		Eigen::Vector3d err_w = odom_data.w - desired_odom.w;
-		limitErr(err_w, -1.0, 1.0);
-		if(have_last_err_ == false){
-			have_last_err_ = true;
-			last_err_q_ = err_q;
-			last_err_w_ = err_w;
+		Eigen::Quaterniond err_q = odom_data.q.inverse() * desired_odom.q;
+		Eigen::Vector3d err_br;
+		if (err_q.w() >= 0){
+			err_br.x() = Kp_q_(0) * err_q.x();
+			err_br.y() = Kp_q_(1) * err_q.y();
+			err_br.z() = Kp_q_(2) * err_q.z();
 		}
-		Eigen::Vector3d d_err_q = err_q - last_err_q_;
-		limitErr(d_err_q, -1.0, 1.0);
-		Eigen::Vector3d d_err_w = err_w - last_err_w_;
-		limitErr(d_err_w, -1.0, 1.0);
-		output.bodyrates = desired_odom.w - Kp_q_.asDiagonal() * err_q - Kp_w_.asDiagonal() * err_w - Kd_q_.asDiagonal() * d_err_q - Kd_w_.asDiagonal() * d_err_w;
-		std::cout << "thrust: " << output.thrust << std::endl;
-		std::cout << "bodyrates: " << output.bodyrates.transpose() << std::endl;
-		last_err_q_ = err_q;
-		last_err_w_ = err_w;
+		else{
+			err_br.x() = -Kp_q_(0) * err_q.x();
+			err_br.y() = -Kp_q_(1) * err_q.y();
+			err_br.z() = -Kp_q_(2) * err_q.z();
+		}
+
+		output.bodyrates = desired_odom.w + err_br;
+
+		// Eigen::Quaterniond err_q = odom_data.q * (desired_odom.q.inverse());
+		// // limitErr(err_q, -1.0, 1.0);
+		// // Eigen::Vector3d err_w = odom_data.w - odom_data.q.matrix().transpose() * desired_odom.q.matrix() * desired_odom.w;
+		// Eigen::Vector3d err_w = odom_data.w - desired_odom.w;
+		// limitErr(err_w, -1.0, 1.0);
+		// if(have_last_err_ == false){
+		// 	have_last_err_ = true;
+		// 	last_err_q_ = err_q.vec();
+		// 	last_err_w_ = err_w;
+		// }
+		// Eigen::Vector3d d_err_q = err_q.vec() - last_err_q_;
+		// limitErr(d_err_q, -1.0, 1.0);
+		// Eigen::Vector3d d_err_w = err_w - last_err_w_;
+		// limitErr(d_err_w, -1.0, 1.0);
+		// if (err_q.w() >= 0){
+		// 	output.bodyrates = desired_odom.w - Kp_q_.asDiagonal() * err_q.vec() - Kp_w_.asDiagonal() * err_w - Kd_q_.asDiagonal() * d_err_q - Kd_w_.asDiagonal() * d_err_w;
+		// 	// err_br.x() = Kp_q_(0) * err_q.x();
+		// 	// err_br.y() = Kp_q_(1) * err_q.y();
+		// 	// err_br.z() = Kp_q_(2) * err_q.z();
+		// }
+		// else{
+		// 	output.bodyrates = desired_odom.w + Kp_q_.asDiagonal() * err_q.vec() - Kp_w_.asDiagonal() * err_w + Kd_q_.asDiagonal() * d_err_q - Kd_w_.asDiagonal() * d_err_w;
+		// 	// err_br.x() = -Kp_q_(0) * err_q.x();
+		// 	// err_br.y() = -Kp_q_(1) * err_q.y();
+		// 	// err_br.z() = -Kp_q_(2) * err_q.z();
+		// }
+		// // std::cout << "thrust: " << output.thrust << std::endl;
+		// // std::cout << "bodyrates: " << output.bodyrates.transpose() << std::endl;
+		// last_err_q_ = err_q.vec();
+		// last_err_w_ = err_w;
 
 		timed_thrust_.push(std::pair<ros::Time, double>(ros::Time::now(), output.thrust));
 		while (timed_thrust_.size() > 100)

@@ -49,8 +49,8 @@ private:
         cmd.orientation.y = output.q.y();
         cmd.orientation.z = output.q.z();
         cmd.thrust = output.thrust;
-        // cmd.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
-        cmd.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE + mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE + mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
+        cmd.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
+        // cmd.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE + mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE + mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
         cmd_pub_.publish(cmd);
         if(state_.mode == mavros_msgs::State::MODE_PX4_OFFBOARD && state_.armed == true)
             se3_controller_.estimateTa(imu_data_.a);

@@ -1,6 +1,6 @@
 # SE(3) Controller for Quadrotor
 
-have something wrong with body_rate control. Use attitude control for now.
+
 
 ## 1 Usage
 
