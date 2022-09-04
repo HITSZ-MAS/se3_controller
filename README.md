@@ -36,7 +36,7 @@ cd ${your folder}/roswrapper/ros
 catkin build
 
 gedit ~/.zshrc
-source ${your folder}/roswrapper/ros/devel/setup.zsh // add to ~/.zshrc, or you can set your path in CMakeLists.txt as showed in se3_controller/CMakeLists.txt
+source ${your folder}/roswrapper/ros/devel/setup.zsh // add to ~/.zshrc, or you can set your path in CMakeLists.txt as shown in se3_controller/CMakeLists.txt
 
 roslaunch airsim_ros_pkgs airsim_node.launch host_ip:=127.0.0.1
 
@@ -68,20 +68,8 @@ $$
 \boldsymbol{y}_{\mathcal{C}} &=[-\sin \psi, \cos \psi, 0]^T \\
 \boldsymbol{x}_{\mathcal{B}} &=\frac{\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{z}_{\mathcal{B}}}{\left\|\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{z}_{\mathcal{B}}\right\|} \\
 \boldsymbol{y}_{\mathcal{B}} &=\frac{\boldsymbol{z}_{\mathcal{B}} \times \boldsymbol{x}_{\mathcal{B}}}{\left\|\boldsymbol{z}_{\mathcal{B}} \times \boldsymbol{x}_{\mathcal{B}}\right\|} \\
-\mathbf{h}_\omega&=\omega_{\mathcal{B} \mathcal{W}} \times \mathbf{z}_B=\frac{1}{\boldsymbol{z}_{\mathcal{B}}^T \boldsymbol{a}}\left(\dot{\mathbf{a}}-\left(\mathbf{z}_B \cdot \dot{\mathbf{a}}\right) \mathbf{z}_B\right)\\
-\boldsymbol{\omega}_d^B&=\left[-\boldsymbol{h}_{\omega} \cdot \boldsymbol{y}_B, \quad \boldsymbol{h}_{\omega} \cdot \boldsymbol{x}_B, \quad \dot{\psi}_r \boldsymbol{z}_W \cdot \boldsymbol{z}_B\right]^T\\
-a_z &=\boldsymbol{z}_{\mathcal{B}}^T\left( \boldsymbol{a}+g \boldsymbol{z}_{\mathcal{W}}\right) \\
-\boldsymbol{\omega}_d &=
-\left[\begin{array}{ccc}
-0 & a_z & 0 \\
-a_z & 0 & 0 \\
-0 & -\boldsymbol{y}_{\mathcal{C}}^T \boldsymbol{z}_{\mathcal{B}} & \left\|\boldsymbol{y}_C \times \boldsymbol{z}_{\mathcal{B}}\right\|
-\end{array}\right]^{-1} 
-\left[\begin{array}{c}
- \boldsymbol{x}_{\mathcal{B}}^T \boldsymbol{j}_{cmd} \\
--\boldsymbol{y}_{\mathcal{B}}^T \boldsymbol{j}_{cmd} \\
-\dot{\psi} \boldsymbol{x}_{\mathcal{C}}^T \boldsymbol{x}_B
-\end{array}\right]
+\mathbf{h}_\omega &=\frac{1}{\boldsymbol{z}_{\mathcal{B}}^T \boldsymbol{a}}\left(\dot{\mathbf{a}}-\left(\mathbf{z}_B \cdot \dot{\mathbf{a}}\right) \mathbf{z}_B\right)\\
+\boldsymbol{\omega}_d^B &=\left[-\boldsymbol{h}_{\omega} \cdot \boldsymbol{y}_B, \quad \boldsymbol{h}_{\omega} \cdot \boldsymbol{x}_B, \quad \dot{\psi}_r \boldsymbol{z}_W \cdot \boldsymbol{z}_B\right]^T\\
 \end{aligned}
 $$
 
