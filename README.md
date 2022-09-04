@@ -4,6 +4,12 @@
 
 ## 1 Usage
 
+**Make sure that p, v, a, j are in the world coordinate!!!**
+
+### 1.1 PX4
+
+**Important!!!: cancel the comment "#define VEL_IN_BODY" and comment "#define AIRSIM" at the beginning of se3_controler/include/se3_controler/se3_controller.hpp**
+
 ```
 cd catkin_ws/src
 git clone https://github.com/HITSZ-MAS/se3_controller.git
@@ -16,9 +22,36 @@ rosrun se3_controller se3_controller_example_node
 
 see se3_example.cpp for more details. 
 
-**Make sure that p, v, a, j are in the world coordinate!!!**
-
 ![se3_example](attachments/se3_example.gif)
+
+### 1.2 AirSim (for RM competition)
+
+**Important!!!: cancel the comment "#define AIRSIM" and comment "#define VEL_IN_BODY" at the beginning of se3_controler/include/se3_controler/se3_controller.hpp**
+
+```
+// open airsim simulate env
+cd ${your folder}/simulator_LINUX
+python launcher.py
+cd ${your folder}/roswrapper/ros
+catkin build
+
+gedit ~/.zshrc
+source ${your folder}/roswrapper/ros/devel/setup.zsh // add to ~/.zshrc, or you can set your path in CMakeLists.txt as showed in se3_controller/CMakeLists.txt
+
+roslaunch airsim_ros_pkgs airsim_node.launch host_ip:=127.0.0.1
+
+// controller
+cd ${your workspace}/src
+git clone https://github.com/HITSZ-MAS/se3_controller.git
+cd ..
+catkin_make -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=Yes
+source ./devel/setup.zsh
+rosrun se3_controller se3_controller_example_airsim_node
+```
+
+the main difference between PX4 and AirSim is the definition of the frame
+
+![PX4_vs_AirSim](attachments/PX4_vs_AirSim.jpg)
 
 ## 2 Theory
 
@@ -26,15 +59,20 @@ see se3_example.cpp for more details.
 
 Calculate $q_d$ and $\omega_d$ through $a_d$ , $j_d$ , $\psi$ and $\dot{\psi}$ .
 
+#### 2.1.1 Traditional Method
+
 $$
 \begin{aligned}
-\boldsymbol{\alpha} &= \boldsymbol{a}_d + g \boldsymbol{z}_{\mathcal{w}} \\
+\boldsymbol{z}_{\mathcal{B}} &=\frac{\boldsymbol{a}_d}{\|\boldsymbol{a}_d\|}\\
 \boldsymbol{x}_{\mathcal{C}} &=[\cos \psi, \sin \psi, 0]^T \\
 \boldsymbol{y}_{\mathcal{C}} &=[-\sin \psi, \cos \psi, 0]^T \\
-\boldsymbol{x}_{\mathcal{B}} &=\frac{\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{\alpha}}{\left\|\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{\alpha}\right\|} \\
-\boldsymbol{y}_{\mathcal{B}} &=\frac{\boldsymbol{\alpha} \times \boldsymbol{x}_{\mathcal{B}}}{\left\|\boldsymbol{\alpha} \times \boldsymbol{x}_{\mathcal{B}}\right\|} \\
-\boldsymbol{z}_{\mathcal{B}} &=\boldsymbol{x}_{\mathcal{B}} \times \boldsymbol{y}_{\mathcal{B}} \\
-\boldsymbol{q}_d &= Quaternion([\boldsymbol{x}_{\mathcal{B}}, \boldsymbol{y}_{\mathcal{B}}, \boldsymbol{z}_{\mathcal{B}}]) \\
+\boldsymbol{x}_{\mathcal{B}} &=\frac{\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{z}_{\mathcal{B}}}{\left\|\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{z}_{\mathcal{B}}\right\|} \\
+\boldsymbol{y}_{\mathcal{B}} &=\frac{\boldsymbol{z}_{\mathcal{B}} \times \boldsymbol{x}_{\mathcal{B}}}{\left\|\boldsymbol{z}_{\mathcal{B}} \times \boldsymbol{x}_{\mathcal{B}}\right\|} \\
+
+\mathbf{h}_\omega&=\omega_{\mathcal{B} \mathcal{W}} \times \mathbf{z}_B=\frac{1}{\boldsymbol{z}_{\mathcal{B}}^T \boldsymbol{a}}\left(\dot{\mathbf{a}}-\left(\mathbf{z}_B \cdot \dot{\mathbf{a}}\right) \mathbf{z}_B\right)\\
+\boldsymbol{\omega}_d^B&=\left[-\boldsymbol{h}_{\omega} \cdot \boldsymbol{y}_B, \quad \boldsymbol{h}_{\omega} \cdot \boldsymbol{x}_B, \quad \dot{\psi}_r \boldsymbol{z}_W \cdot \boldsymbol{z}_B\right]^T\\
+
+\\
 a_z &=\boldsymbol{z}_{\mathcal{B}}^T\left( \boldsymbol{a}+g \boldsymbol{z}_{\mathcal{W}}\right) \\
 \boldsymbol{\omega}_d &=
 \left[\begin{array}{ccc}
@@ -50,7 +88,32 @@ a_z & 0 & 0 \\
 \end{aligned}
 $$
 
-see "Differential Flatness  of Quadrotor Dynamics Subject to Rotor Drag for Accurate Tracking of  High-Speed Trajectories" or "Control of Quadrotors Using the Hopf Fibration on SO(3)" for more details.
+Differential Flatness  of Quadrotor Dynamics Subject to Rotor Drag for Accurate Tracking of  High-Speed Trajectories
+
+#### 2.1.2 Hopf Fibration
+
+Advantage: with no singularity
+$$
+\boldsymbol{z}_{\mathcal{B}}=\frac{\boldsymbol{a}_d}{\|\boldsymbol{a}_d\|}=(a,b,c)
+$$
+if $c\geq0$
+$$
+\begin{aligned} 
+q_1&=\frac{1}{\sqrt{2(1+c)}}[1+c,-b,a,0] \\
+q_{\psi}&=[cos(\frac{\psi}{2}),0,0,sin(\frac{\psi}{2})] \\
+q&=q_1 \otimes q_\psi
+\end{aligned}
+$$
+if $c<0$
+$$
+\begin{aligned} 
+q_1&=\frac{1}{\sqrt{2(1-c)}}[-b,1-c,0,a] \\
+q_{\bar{\psi}}&=\left[\cos \frac{\bar{\psi}}{2}, 0,0, \sin \frac{\bar{\psi}}{2}\right] \\
+\bar{\psi}&=\psi+2 \arctan 2(a, b) \\
+q&=q_1 \otimes q_\psi
+\end{aligned}
+$$
+Control of Quadrotors Using the Hopf Fibration on SO(3)
 
 ### 2.2 Control Law-PD control
 
@@ -81,7 +144,7 @@ $$
 Assume that
 
 $$
-t_{cmd}=\frac{a_{z,cmd}}{T_a}
+t_{cmd}=\frac{a_{z,d}}{T_a}
 $$
 
 where $T_a$ is the normalization constant, which is determined by the physical characteristics of the quadrotor, and can be estimated by Kalman filtering

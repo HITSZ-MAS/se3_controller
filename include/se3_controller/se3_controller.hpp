@@ -3,10 +3,24 @@
 #include <Eigen/Dense>
 #include <sensor_msgs/Imu.h>
 #include <nav_msgs/Odometry.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+// #define VEL_IN_BODY /* cancel the comment if the velocity in odom topic is relative to current body frame, not to world frame.*/
+#define AIRSIM
 
-#define VEL_IN_BODY /* cancel the comment if the velocity in odom topic is relative to current body frame, not to world frame.*/
-
+Eigen::Vector3d get_yaw_from_quat(Eigen::Quaterniond q){
+	tf2::Quaternion quat_tf;
+	geometry_msgs::Quaternion quat_msg;
+	quat_msg.w = q.w();
+	quat_msg.x = q.x();
+	quat_msg.y = q.y();
+	quat_msg.z = q.z();
+	double roll, pitch, yaw;
+	tf2::fromMsg(quat_msg, quat_tf);
+	tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
+	Eigen::Vector3d euler(roll, pitch, yaw);
+	return euler;
+}
 
 struct Odom_Data_t{
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -43,6 +57,17 @@ struct Odom_Data_t{
 		w(0) = msg.twist.twist.angular.x;
 		w(1) = msg.twist.twist.angular.y;
 		w(2) = msg.twist.twist.angular.z;
+
+		#ifdef AIRSIM
+		Eigen::Matrix3d R_mid;
+		R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
+		Eigen::Quaterniond q_mid(R_mid);
+
+		p = q_mid.toRotationMatrix() * p;
+		v = q_mid.toRotationMatrix() * v;
+		q = q_mid * q * q_mid;
+		w = q_mid.toRotationMatrix() * w;
+		#endif
 
 		#ifdef VEL_IN_BODY 
 		v = q.toRotationMatrix() * v;
@@ -115,10 +140,6 @@ struct Imu_Data_t{
 		rcv_stamp = ros::Time::now();
 		recv_new_msg = true;
 
-		w(0) = msg.angular_velocity.x;
-		w(1) = msg.angular_velocity.y;
-		w(2) = msg.angular_velocity.z;
-
 		a(0) = msg.linear_acceleration.x;
 		a(1) = msg.linear_acceleration.y;
 		a(2) = msg.linear_acceleration.z;
@@ -127,6 +148,20 @@ struct Imu_Data_t{
 		q.y() = msg.orientation.y;
 		q.z() = msg.orientation.z;
 		q.w() = msg.orientation.w;
+
+		w(0) = msg.angular_velocity.x;
+		w(1) = msg.angular_velocity.y;
+		w(2) = msg.angular_velocity.z;
+
+		#ifdef AIRSIM
+		Eigen::Matrix3d R_mid;
+		R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
+		Eigen::Quaterniond q_mid(R_mid);
+
+		a = q_mid.toRotationMatrix() * a;
+		q = q_mid * q * q_mid;
+		w = q_mid.toRotationMatrix() * w;
+		#endif
 
 		// check the frequency
 		// static int one_min_count = 9999;
@@ -211,16 +246,22 @@ private:
 	void computeFlatInput_Hopf_Fibration(Desired_State_t desired_state, Odom_Data_t &desired_odom){
 		Eigen::Vector3d aa_zb = desired_state.a.normalized();
 		double a = aa_zb(0), b = aa_zb(1), c = aa_zb(2);
-		double norm = sqrt(2 * (1 + c));
+		
 		double yaw = desired_state.yaw;
 		if(c > 0){
+			double norm = sqrt(2 * (1 + c));
 			Eigen::Quaterniond q((1 + c) / norm, -b / norm, a / norm, 0);
+			// printf("q(c>0): (%lf,%lf,%lf,%lf)\n", q.w(), q.x(), q.y(), q.z());
 			Eigen::Quaterniond q_yaw(cos(yaw / 2), 0, 0, sin(yaw / 2));
+			// printf("q_yaw: (%lf,%lf,%lf,%lf)\n", q_yaw.w(), q_yaw.x(), q_yaw.y(), q_yaw.z());
 			desired_odom.q = q * q_yaw;
 		}else{
+			double norm = sqrt(2 * (1 - c));
 			Eigen::Quaterniond q(-b / norm, (1 - c) / norm, 0, a / norm);
+			// printf("q(c<=0): (%lf,%lf,%lf,%lf)\n", q.w(), q.x(), q.y(), q.z());
 			yaw += 2 * atan2(a, b);
 			Eigen::Quaterniond q_yaw(cos(yaw / 2), 0, 0, sin(yaw / 2));
+			// printf("q_yaw: (%lf,%lf,%lf,%lf)\n", q_yaw.w(), q_yaw.x(), q_yaw.y(), q_yaw.z());
 			desired_odom.q = q * q_yaw;
 		}
 
@@ -355,16 +396,16 @@ public:
 		
 		double thr = desired_state.a.transpose() * (odom_data.q * Eigen::Vector3d::UnitZ());
 		output.thrust = thr / T_a_;
-		std::cout << std::endl << "desired_state.a: " << desired_state.a.transpose() << std::endl;
-		// std::cout << "desired_state.a: " << desired_state.a.transpose() << std::endl;
+		// std::cout << std::endl << "desired_state.a: " << desired_state.a.transpose() << std::endl;
+		// std::cout << "odom_v: " << odom_data.v.transpose() << std::endl;
 		
 		Odom_Data_t desired_odom;
 		// computeFlatInput(desired_state, desired_odom);
 		computeFlatInput_Hopf_Fibration(desired_state, desired_odom);
 		// computeFlatInput_WZP(desired_state, desired_odom, odom_data);
 		output.q = imu_data.q * odom_data.q.inverse() * desired_odom.q; // Align with FCU frame
-		// output.q = desired_odom.q;
-		// printf("desired q: (%lf,%lf,%lf,%lf)\n", output.q.w(), output.q.x(), output.q.y(), output.q.z());
+		
+		// printf("desired q: (%lf,%lf,%lf,%lf)\n", desired_odom.q.w(), desired_odom.q.x(), desired_odom.q.y(), desired_odom.q.z());
 		// std::cout << "desired q: " << desired_state.a.transpose() << std::endl;
 
 		Eigen::Quaterniond err_q = odom_data.q.inverse() * desired_odom.q;
@@ -381,6 +422,15 @@ public:
 		}
 
 		output.bodyrates = desired_odom.w + err_br;
+
+		#ifdef AIRSIM
+		Eigen::Matrix3d R_mid;
+		R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
+		Eigen::Quaterniond q_mid(R_mid.inverse());
+		output.q = q_mid * output.q * q_mid;
+		output.bodyrates = q_mid * output.bodyrates;
+		#endif
+		
 
 		// Eigen::Quaterniond err_q = odom_data.q * (desired_odom.q.inverse());
 		// // limitErr(err_q, -1.0, 1.0);
