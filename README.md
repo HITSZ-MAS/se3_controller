@@ -68,11 +68,8 @@ $$
 \boldsymbol{y}_{\mathcal{C}} &=[-\sin \psi, \cos \psi, 0]^T \\
 \boldsymbol{x}_{\mathcal{B}} &=\frac{\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{z}_{\mathcal{B}}}{\left\|\boldsymbol{y}_{\mathcal{c}} \times \boldsymbol{z}_{\mathcal{B}}\right\|} \\
 \boldsymbol{y}_{\mathcal{B}} &=\frac{\boldsymbol{z}_{\mathcal{B}} \times \boldsymbol{x}_{\mathcal{B}}}{\left\|\boldsymbol{z}_{\mathcal{B}} \times \boldsymbol{x}_{\mathcal{B}}\right\|} \\
-
 \mathbf{h}_\omega&=\omega_{\mathcal{B} \mathcal{W}} \times \mathbf{z}_B=\frac{1}{\boldsymbol{z}_{\mathcal{B}}^T \boldsymbol{a}}\left(\dot{\mathbf{a}}-\left(\mathbf{z}_B \cdot \dot{\mathbf{a}}\right) \mathbf{z}_B\right)\\
 \boldsymbol{\omega}_d^B&=\left[-\boldsymbol{h}_{\omega} \cdot \boldsymbol{y}_B, \quad \boldsymbol{h}_{\omega} \cdot \boldsymbol{x}_B, \quad \dot{\psi}_r \boldsymbol{z}_W \cdot \boldsymbol{z}_B\right]^T\\
-
-\\
 a_z &=\boldsymbol{z}_{\mathcal{B}}^T\left( \boldsymbol{a}+g \boldsymbol{z}_{\mathcal{W}}\right) \\
 \boldsymbol{\omega}_d &=
 \left[\begin{array}{ccc}
@@ -93,10 +90,13 @@ Differential Flatness  of Quadrotor Dynamics Subject to Rotor Drag for Accurate 
 #### 2.1.2 Hopf Fibration
 
 Advantage: with no singularity
+
 $$
 \boldsymbol{z}_{\mathcal{B}}=\frac{\boldsymbol{a}_d}{\|\boldsymbol{a}_d\|}=(a,b,c)
 $$
+
 if $c\geq0$
+
 $$
 \begin{aligned} 
 q_1&=\frac{1}{\sqrt{2(1+c)}}[1+c,-b,a,0] \\
@@ -104,7 +104,9 @@ q_{\psi}&=[cos(\frac{\psi}{2}),0,0,sin(\frac{\psi}{2})] \\
 q&=q_1 \otimes q_\psi
 \end{aligned}
 $$
+
 if $c<0$
+
 $$
 \begin{aligned} 
 q_1&=\frac{1}{\sqrt{2(1-c)}}[-b,1-c,0,a] \\
@@ -113,6 +115,7 @@ q_{\bar{\psi}}&=\left[\cos \frac{\bar{\psi}}{2}, 0,0, \sin \frac{\bar{\psi}}{2}\
 q&=q_1 \otimes q_\psi
 \end{aligned}
 $$
+
 Control of Quadrotors Using the Hopf Fibration on SO(3)
 
 ### 2.2 Control Law-PD control
