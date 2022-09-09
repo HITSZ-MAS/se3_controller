@@ -17,7 +17,7 @@ cd ..
 catkin_make -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=Yes
 source ./devel/setup.zsh
 roslaunch px4 mavros_posix_sitl.launch
-roslaunch se3_controller px4_example_node
+roslaunch se3_controller px4_example.launch
 ```
 
 see se3_example.cpp for more details. 
@@ -46,7 +46,7 @@ git clone https://github.com/HITSZ-MAS/se3_controller.git
 cd ..
 catkin_make -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=Yes
 source ./devel/setup.zsh
-roslaunch se3_controller airsim_example_node
+roslaunch se3_controller airsim_example.launch
 ```
 
 the main difference between PX4 and AirSim is the definition of the frame
