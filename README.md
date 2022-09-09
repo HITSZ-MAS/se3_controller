@@ -8,7 +8,7 @@
 
 ### 1.1 PX4
 
-**Important!!!: cancel the comment "#define VEL_IN_BODY" and comment "#define AIRSIM" at the beginning of se3_controler/include/se3_controler/se3_controller.hpp**
+**Important!!!: cancel the comment "#define VEL_IN_BODY" and comment "#define AIRSIM" at the beginning of se3_controller/include/se3_controller/se3_controller.hpp**
 
 ```
 cd catkin_ws/src
@@ -17,7 +17,7 @@ cd ..
 catkin_make -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=Yes
 source ./devel/setup.zsh
 roslaunch px4 mavros_posix_sitl.launch
-rosrun se3_controller se3_controller_example_node
+roslaunch se3_controller px4_example_node
 ```
 
 see se3_example.cpp for more details. 
@@ -26,7 +26,7 @@ see se3_example.cpp for more details.
 
 ### 1.2 AirSim (for RM competition)
 
-**Important!!!: cancel the comment "#define AIRSIM" and comment "#define VEL_IN_BODY" at the beginning of se3_controler/include/se3_controler/se3_controller.hpp**
+**Important!!!: cancel the comment "#define AIRSIM" and comment "#define VEL_IN_BODY" at the beginning of se3_controller/include/se3_controller/se3_controller.hpp**
 
 ```
 // open airsim simulate env
@@ -46,7 +46,7 @@ git clone https://github.com/HITSZ-MAS/se3_controller.git
 cd ..
 catkin_make -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=Yes
 source ./devel/setup.zsh
-rosrun se3_controller se3_controller_example_airsim_node
+roslaunch se3_controller airsim_example_node
 ```
 
 the main difference between PX4 and AirSim is the definition of the frame

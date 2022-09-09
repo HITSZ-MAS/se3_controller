@@ -29,17 +29,16 @@ private:
         exec_timer_.stop(); // To avoid blockage
 
         Controller_Output_t output;
-        Desired_State_t desired_state;
 
-        Eigen::Vector3d desired_pos_ned(1,1,-2);
-        double desired_yaw_ned = -M_PI / 4;
+        Eigen::Vector3d desired_pos_ned(14.87,-0.89,-2.34);
+        double desired_yaw_ned = 0;
 
-        desired_state.p(0) = desired_pos_ned(1);
-        desired_state.p(1) = desired_pos_ned(0);
-        desired_state.p(2) = -desired_pos_ned(2);
-        desired_state.yaw = -desired_yaw_ned;
+        // desired_state_.p(0) = desired_pos_ned(1);
+        // desired_state_.p(1) = desired_pos_ned(0);
+        // desired_state_.p(2) = -desired_pos_ned(2);
+        // desired_state_.yaw = -desired_yaw_ned;
 
-        se3_controller_.calControl(odom_data_, imu_data_, desired_state, output);
+        se3_controller_.calControl(odom_data_, imu_data_, desired_state_, output);
         airsim_ros_pkgs::PoseCmd pose_cmd;
         Eigen::Vector3d euler = get_yaw_from_quat(output.q);
         pose_cmd.roll = euler(0);
@@ -67,6 +66,14 @@ public:
     SE3_EXAMPLE(/* args */){};
     ~SE3_EXAMPLE(){};
     void init(ros::NodeHandle &nh){
+        nh.getParam("x", desired_state_.p(1));
+        nh.getParam("y", desired_state_.p(0));
+        nh.getParam("z", desired_state_.p(2));
+        nh.getParam("yaw", desired_state_.yaw);
+
+        desired_state_.p(2) = -desired_state_.p(2);
+        desired_state_.yaw = -desired_state_.yaw;
+
         ar_cmd_pub_ = nh.advertise<airsim_ros_pkgs::AngleRateThrottle>("/airsim_node/drone_1/angle_rate_throttle_frame", 10);
         pose_cmd_pub_ = nh.advertise<airsim_ros_pkgs::PoseCmd>("/airsim_node/drone_1/pose_cmd_body_frame", 10);
 
