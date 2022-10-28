@@ -170,6 +170,7 @@ class SE3_CONTROLLER
 {
 private:
 	Eigen::Vector3d Kp_p_, Kp_v_, Kp_a_, Kp_q_, Kp_w_, Kd_p_, Kd_v_, Kd_a_, Kd_q_, Kd_w_;
+	double limit_err_p_, limit_err_v_, limit_err_a_, limit_d_err_p_, limit_d_err_v_, limit_d_err_a_;
 	bool have_last_err_;
 
 	double hover_percent_;
@@ -329,17 +330,8 @@ public:
 	SE3_CONTROLLER(){};
     ~SE3_CONTROLLER(){};
 
-	void init(Eigen::Vector3d kp_p, Eigen::Vector3d kp_v, Eigen::Vector3d kp_a, Eigen::Vector3d kp_q, Eigen::Vector3d kp_w, Eigen::Vector3d kd_p, Eigen::Vector3d kd_v, Eigen::Vector3d kd_a, Eigen::Vector3d kd_q, Eigen::Vector3d kd_w, double hover_percent){
-		Kp_p_ = kp_p;
-		Kp_v_ = kp_v;
-		Kp_a_ = kp_a;
-		Kp_q_ = kp_q;
-		Kp_w_ = kp_w;
-		Kd_p_ = kd_p;
-		Kd_v_ = kd_v;
-		Kd_a_ = kd_a;
-		Kd_q_ = kd_q;
-		Kd_w_ = kd_w;
+	void init(double hover_percent){
+		
 		hover_percent_ = hover_percent;
 		T_a_ = gravity_ / hover_percent_;
 		grav_vec_ << 0.0, 0.0, gravity_;
@@ -353,25 +345,47 @@ public:
 		have_last_err_ = false;
 	}
 
+	void setup(Eigen::Vector3d kp_p, Eigen::Vector3d kp_v, Eigen::Vector3d kp_a, Eigen::Vector3d kp_q, Eigen::Vector3d kp_w, 
+				Eigen::Vector3d kd_p, Eigen::Vector3d kd_v, Eigen::Vector3d kd_a, Eigen::Vector3d kd_q, Eigen::Vector3d kd_w,
+				double limit_err_p, double limit_err_v, double limit_err_a, 
+				double limit_d_err_p, double limit_d_err_v, double limit_d_err_a){
+		Kp_p_ = kp_p;
+		Kp_v_ = kp_v;
+		Kp_a_ = kp_a;
+		Kp_q_ = kp_q;
+		Kp_w_ = kp_w;
+		Kd_p_ = kd_p;
+		Kd_v_ = kd_v;
+		Kd_a_ = kd_a;
+		Kd_q_ = kd_q;
+		Kd_w_ = kd_w;
+		limit_err_p_ = limit_err_p;
+		limit_err_v_ = limit_err_v;
+		limit_err_a_ = limit_err_a;
+		limit_d_err_p_ = limit_d_err_p;
+		limit_d_err_v_ = limit_d_err_v;
+		limit_d_err_a_ = limit_d_err_a;
+	}
+
 	bool calControl(Odom_Data_t odom_data, Imu_Data_t imu_data, Desired_State_t desired_state, Controller_Output_t &output){
 		if((ros::Time::now() - odom_data.rcv_stamp).toSec() > 0.1){
-			std::cout << "odom not rcv" << std::endl;
+			// std::cout << "odom not rcv" << std::endl;
 			return false;
 		}
 		// desired_state.yaw = limitYaw(fromQuaternion2yaw(odom_data.q), desired_state.yaw, M_PI_2 / 3);
 		Eigen::Vector3d err_p = odom_data.p - desired_state.p;
-		limitErr(err_p, -1.0, 1.0);
+		limitErr(err_p, -limit_err_p_, limit_err_p_);
 		if(have_last_err_ == false)
 			last_err_p_ = err_p;
 		Eigen::Vector3d d_err_p = err_p - last_err_p_;
-		limitErr(d_err_p, -1.0, 1.0);
+		limitErr(d_err_p, -limit_d_err_p_, limit_d_err_p_);
 		desired_state.v = desired_state.v - Kp_p_.asDiagonal() * err_p - Kd_p_.asDiagonal() * d_err_p;
 		Eigen::Vector3d err_v = odom_data.v - desired_state.v;
-		limitErr(err_v, -1.0, 1.0);
+		limitErr(err_v, -limit_err_v_, limit_err_v_);
 		if(have_last_err_ == false)
 			last_err_v_ = err_v;
 		Eigen::Vector3d d_err_v = err_v - last_err_v_;
-		limitErr(d_err_v, -1.0, 1.0);
+		limitErr(d_err_v, -limit_d_err_v_, limit_d_err_v_);
 		desired_state.a = desired_state.a - Kp_v_.asDiagonal() * err_v - Kd_v_.asDiagonal() * d_err_v + grav_vec_;
 		// std::cout << "err_p: " << err_p.transpose() << std::endl;
 		// std::cout << "err_v: " << err_v.transpose() << std::endl;
@@ -379,11 +393,11 @@ public:
 		// std::cout << "odom_data.v: " << odom_data.v.transpose() << std::endl;
 		Eigen::Vector3d a_world = odom_data.q.toRotationMatrix() * imu_data.a;
 		Eigen::Vector3d err_a = a_world - desired_state.a;
-		limitErr(err_a, -1.0, 1.0);
+		limitErr(err_a, -limit_err_a_, limit_err_a_);
 		if(have_last_err_ == false)
 			last_err_a_ = err_a;
 		Eigen::Vector3d d_err_a = err_a - last_err_a_;
-		limitErr(d_err_a, -1.0, 1.0);
+		limitErr(d_err_a, -limit_d_err_a_, limit_d_err_a_);
 		desired_state.j = desired_state.j - Kp_a_.asDiagonal() * err_a - Kd_a_.asDiagonal() * d_err_a;
 
 		last_err_p_ = err_p;
@@ -495,7 +509,7 @@ public:
 			double K = gamma * P_ * thr;
 			T_a_ = T_a_ + K * (est_a(2) - thr * T_a_);
 			P_ = (1 - K * thr) * P_ / rho_;
-			T_a_ = std::min(T_a_, gravity_ / 0.8);
+			T_a_ = std::min(T_a_, gravity_ / 0.25);
 			// std::cout << std::endl << "imu: " << est_a.transpose() << std::endl;
 			//printf("%6.3f,%6.3f,%6.3f,%6.3f\n", T_a_, gamma, K, P_);
 			//fflush(stdout);

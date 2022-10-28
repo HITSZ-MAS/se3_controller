@@ -23,6 +23,13 @@ namespace utils{
 		return euler;
 	}
 
+	Eigen::Quaterniond euler2quat(double roll, double pitch, double yaw){
+		tf2::Quaternion orientation;
+		orientation.setRPY(roll, pitch, yaw);
+		Eigen::Quaterniond q(orientation.getW(), orientation.getX(), orientation.getY(), orientation.getZ());
+		return q;
+	}
+
 	double atan2_dot(double y, double x, double y_dot, double x_dot){
 		if(x == 0.0 && y == 0.0){
 			return 0;

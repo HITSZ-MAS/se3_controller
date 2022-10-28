@@ -1,7 +1,5 @@
 # SE(3) Controller for Quadrotor
 
-
-
 ## 1 Usage
 
 **Make sure that p, v, a, j are in the world coordinate!!!**
@@ -19,12 +17,11 @@ catkin_make -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=Yes
 source ./devel/setup.zsh
 roslaunch px4 mavros_posix_sitl.launch
 roslaunch se3_controller px4_example.launch
-rosrun rqt_reconfigure rqt_reconfigure
 ```
 
-dynamic tune param
+dynamic tune param & set desire p and euler angle
 
-![image-20221028161110790](attachments/image-20221028161110790.png)
+![image-20221028231036756](attachments/image-20221028231036756.png)
 
 see se3_example.cpp for more details. 
 

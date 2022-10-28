@@ -6,4 +6,7 @@
     <param name="z" type="double" value="2.0"/>
     <param name="yaw" type="double" value="1.57"/>
   </node>
+
+  <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure">
+  </node>
 </launch>
