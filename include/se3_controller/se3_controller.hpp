@@ -1,26 +1,14 @@
-#pragma once
+#ifndef SE3_CONTROLLER_HPP
+#define SE3_CONTROLLER_HPP
+
 #include <queue>
 #include <Eigen/Dense>
 #include <sensor_msgs/Imu.h>
 #include <nav_msgs/Odometry.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include "se3_controller/utils.hpp"
 
-// #define VEL_IN_BODY /* cancel the comment if the velocity in odom topic is relative to current body frame, not to world frame.*/
-#define AIRSIM
-
-Eigen::Vector3d get_yaw_from_quat(Eigen::Quaterniond q){
-	tf2::Quaternion quat_tf;
-	geometry_msgs::Quaternion quat_msg;
-	quat_msg.w = q.w();
-	quat_msg.x = q.x();
-	quat_msg.y = q.y();
-	quat_msg.z = q.z();
-	double roll, pitch, yaw;
-	tf2::fromMsg(quat_msg, quat_tf);
-	tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
-	Eigen::Vector3d euler(roll, pitch, yaw);
-	return euler;
-}
+#define VEL_IN_BODY /* cancel the comment if the velocity in odom topic is relative to current body frame, not to world frame.*/
+// #define AIRSIM
 
 struct Odom_Data_t{
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -66,6 +54,7 @@ struct Odom_Data_t{
 		p = q_mid.toRotationMatrix() * p;
 		v = q_mid.toRotationMatrix() * v;
 		q = q_mid * q * q_mid;
+		q.normalize();
 		w = q_mid.toRotationMatrix() * w;
 		#endif
 
@@ -104,7 +93,7 @@ struct Desired_State_t
 		a = Eigen::Vector3d::Zero();
 		j = Eigen::Vector3d::Zero();
 		q = odom.q.normalized();
-		yaw = atan2(2 * (q.w() * q.x() + q.y() * q.z()), 1 - 2 * (q.x() * q.x() + q.y() * q.y()));
+		yaw = utils::fromQuaternion2yaw(q);
 		yaw_rate = 0;
 	}
 };
@@ -160,6 +149,7 @@ struct Imu_Data_t{
 
 		a = q_mid.toRotationMatrix() * a;
 		q = q_mid * q * q_mid;
+		q.normalize();
 		w = q_mid.toRotationMatrix() * w;
 		#endif
 
@@ -244,39 +234,36 @@ private:
 	}
 
 	void computeFlatInput_Hopf_Fibration(Desired_State_t desired_state, Odom_Data_t &desired_odom){
-		Eigen::Vector3d aa_zb = desired_state.a.normalized();
-		double a = aa_zb(0), b = aa_zb(1), c = aa_zb(2);
-		
+		Eigen::Vector3d abc = desired_state.a.normalized();
+		double a = abc(0), b = abc(1), c = abc(2);
+		Eigen::Vector3d abc_dot = (desired_state.a.dot(desired_state.a) * Eigen::MatrixXd::Identity(3, 3) - desired_state.a * desired_state.a.transpose()) / desired_state.a.norm() / desired_state.a.squaredNorm() * desired_state.j;
+		double a_dot = abc_dot(0), b_dot = abc_dot(1), c_dot = abc_dot(2);
 		double yaw = desired_state.yaw;
+		double yaw_dot = desired_state.yaw_rate;
+		double syaw = sin(yaw), cyaw = cos(yaw);
+
 		if(c > 0){
 			double norm = sqrt(2 * (1 + c));
 			Eigen::Quaterniond q((1 + c) / norm, -b / norm, a / norm, 0);
-			// printf("q(c>0): (%lf,%lf,%lf,%lf)\n", q.w(), q.x(), q.y(), q.z());
 			Eigen::Quaterniond q_yaw(cos(yaw / 2), 0, 0, sin(yaw / 2));
-			// printf("q_yaw: (%lf,%lf,%lf,%lf)\n", q_yaw.w(), q_yaw.x(), q_yaw.y(), q_yaw.z());
 			desired_odom.q = q * q_yaw;
+			desired_odom.w(0) = syaw * a_dot - cyaw * b_dot - (a * syaw - b * cyaw) * c_dot / (c + 1);
+			desired_odom.w(1) = cyaw * a_dot + syaw * b_dot - (a * cyaw + b * syaw) * c_dot / (c + 1);
+			desired_odom.w(2) = (b * a_dot - a * b_dot) / (1 + c) + yaw_dot;
 		}else{
 			double norm = sqrt(2 * (1 - c));
 			Eigen::Quaterniond q(-b / norm, (1 - c) / norm, 0, a / norm);
-			// printf("q(c<=0): (%lf,%lf,%lf,%lf)\n", q.w(), q.x(), q.y(), q.z());
 			yaw += 2 * atan2(a, b);
 			Eigen::Quaterniond q_yaw(cos(yaw / 2), 0, 0, sin(yaw / 2));
-			// printf("q_yaw: (%lf,%lf,%lf,%lf)\n", q_yaw.w(), q_yaw.x(), q_yaw.y(), q_yaw.z());
 			desired_odom.q = q * q_yaw;
+			syaw = sin(yaw);
+			cyaw = cos(yaw);
+			yaw_dot = yaw_dot;// + atan2_dot(a, b, a_dot, b_dot);
+			
+			desired_odom.w(0) = syaw * a_dot + cyaw * b_dot - (a * syaw + b * cyaw) * c_dot / (c - 1);
+			desired_odom.w(1) = cyaw * a_dot - syaw * b_dot - (a * cyaw - b * syaw) * c_dot / (c - 1);
+			desired_odom.w(2) = (b * a_dot - a * b_dot) / (c - 1) + yaw_dot;
 		}
-
-		Eigen::Matrix3d rotM = desired_odom.q.toRotationMatrix();
-		Eigen::Vector3d xb = rotM.col(0);
-		Eigen::Vector3d yb = rotM.col(1);
-		Eigen::Vector3d zb = rotM.col(2);
-		Eigen::Vector3d xc(cos(desired_state.yaw), sin(desired_state.yaw), 0);
-		Eigen::Vector3d yc(-sin(desired_state.yaw), cos(desired_state.yaw), 0);
-
-		double a_zb = zb.dot(desired_state.a);
-		desired_odom.w(0) = -yb.dot(desired_state.j) / a_zb;
-		desired_odom.w(1) = xb.dot(desired_state.j) / a_zb;
-		desired_odom.w(2) = desired_state.yaw_rate * xc.dot(xb) + yc.dot(zb) * desired_odom.w(1);
-		desired_odom.w(2) /= (yc.cross(zb)).norm();
 	}
 
 	void normalizeWithGrad(const Eigen::Vector3d &x, const Eigen::Vector3d &xd, Eigen::Vector3d &xNor, Eigen::Vector3d &xNord) const
@@ -320,14 +307,22 @@ private:
 		return;
 	}
 
-	double fromQuaternion2yaw(Eigen::Quaterniond q){
-		return atan2(2 * (q.x()*q.y() + q.w()*q.z()), q.w()*q.w() + q.x()*q.x() - q.y()*q.y() - q.z()*q.z());
-	}
-
 	void limitErr(Eigen::Vector3d &err, double low, double upper){
 		err(0) = std::max(std::min(err(0), upper), low);
 		err(1) = std::max(std::min(err(1), upper), low);
 		err(2) = std::max(std::min(err(2), upper), low);
+	}
+
+	double limitYaw(double yaw_curr, double yaw_des, double yaw_limit){
+		double err = yaw_des - yaw_curr;
+		yaw_limit = std::abs(yaw_limit);
+		if(err < -yaw_limit){
+			return yaw_curr - yaw_limit;
+		}else if (err > yaw_limit){
+			return yaw_curr + yaw_limit;
+		}else{
+			return yaw_des;
+		}
 	}
 
 public:
@@ -358,11 +353,12 @@ public:
 		have_last_err_ = false;
 	}
 
-	void calControl(Odom_Data_t odom_data, Imu_Data_t imu_data, Desired_State_t desired_state, Controller_Output_t &output){
+	bool calControl(Odom_Data_t odom_data, Imu_Data_t imu_data, Desired_State_t desired_state, Controller_Output_t &output){
 		if((ros::Time::now() - odom_data.rcv_stamp).toSec() > 0.1){
 			std::cout << "odom not rcv" << std::endl;
-			return;
+			return false;
 		}
+		// desired_state.yaw = limitYaw(fromQuaternion2yaw(odom_data.q), desired_state.yaw, M_PI_2 / 3);
 		Eigen::Vector3d err_p = odom_data.p - desired_state.p;
 		limitErr(err_p, -1.0, 1.0);
 		if(have_last_err_ == false)
@@ -403,7 +399,7 @@ public:
 		// computeFlatInput(desired_state, desired_odom);
 		computeFlatInput_Hopf_Fibration(desired_state, desired_odom);
 		// computeFlatInput_WZP(desired_state, desired_odom, odom_data);
-		output.q = imu_data.q * odom_data.q.inverse() * desired_odom.q; // Align with FCU frame
+		output.q = imu_data.q * odom_data.q.inverse() * desired_odom.q; // Align with FCU frame, from odom to imu frame
 		
 		// printf("desired q: (%lf,%lf,%lf,%lf)\n", desired_odom.q.w(), desired_odom.q.x(), desired_odom.q.y(), desired_odom.q.z());
 		// std::cout << "desired q: " << desired_state.a.transpose() << std::endl;
@@ -466,6 +462,7 @@ public:
 		timed_thrust_.push(std::pair<ros::Time, double>(ros::Time::now(), output.thrust));
 		while (timed_thrust_.size() > 100)
 			timed_thrust_.pop();
+		return true;
 	}
 
 	bool estimateTa(const Eigen::Vector3d &est_a){
@@ -498,6 +495,7 @@ public:
 			double K = gamma * P_ * thr;
 			T_a_ = T_a_ + K * (est_a(2) - thr * T_a_);
 			P_ = (1 - K * thr) * P_ / rho_;
+			T_a_ = std::min(T_a_, gravity_ / 0.8);
 			// std::cout << std::endl << "imu: " << est_a.transpose() << std::endl;
 			//printf("%6.3f,%6.3f,%6.3f,%6.3f\n", T_a_, gamma, K, P_);
 			//fflush(stdout);
@@ -507,3 +505,5 @@ public:
 		return false;
 	}
 };
+
+#endif

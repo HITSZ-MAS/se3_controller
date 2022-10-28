@@ -11,6 +11,7 @@
 **Important!!!: cancel the comment "#define VEL_IN_BODY" and comment "#define AIRSIM" at the beginning of se3_controller/include/se3_controller/se3_controller.hpp**
 
 ```
+sudo apt install ros-noetic-ddynamic-reconfigure
 cd catkin_ws/src
 git clone https://github.com/HITSZ-MAS/se3_controller.git
 cd ..
@@ -18,7 +19,12 @@ catkin_make -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=Yes
 source ./devel/setup.zsh
 roslaunch px4 mavros_posix_sitl.launch
 roslaunch se3_controller px4_example.launch
+rosrun rqt_reconfigure rqt_reconfigure
 ```
+
+dynamic tune param
+
+![image-20221028161110790](attachments/image-20221028161110790.png)
 
 see se3_example.cpp for more details. 
 
@@ -80,7 +86,10 @@ Differential Flatness  of Quadrotor Dynamics Subject to Rotor Drag for Accurate 
 Advantage: with no singularity
 
 $$
-\boldsymbol{z}_{\mathcal{B}}=\frac{\boldsymbol{a}_d}{\|\boldsymbol{a}_d\|}=(a,b,c)
+\begin{aligned}
+\boldsymbol{z}_{\mathcal{B}}&=\frac{\boldsymbol{a}_d}{\|\boldsymbol{a}_d\|}=(a,b,c)\\
+[\dot{a}\ \dot{b}\ \dot{c}]^T&=\frac{d}{d t} \boldsymbol{z}_{\mathcal{B}}=\frac{\boldsymbol{a}_d^T \boldsymbol{a}_d \cdot I-\boldsymbol{a}_d \boldsymbol{a}_d^T}{\|\boldsymbol{a}_d\|^3} \cdot \dot{\boldsymbol{a}_d}\\
+\end{aligned}
 $$
 
 if $c\geq0$
@@ -89,7 +98,10 @@ $$
 \begin{aligned} 
 q_1&=\frac{1}{\sqrt{2(1+c)}}[1+c,-b,a,0] \\
 q_{\psi}&=[cos(\frac{\psi}{2}),0,0,sin(\frac{\psi}{2})] \\
-q&=q_1 \otimes q_\psi
+q&=q_1 \otimes q_\psi \\
+\omega_1&=\sin (\psi) \dot{a}-\cos (\psi) \dot{b}-(a \sin (\psi)-b \cos (\psi))\left(\frac{\dot{c}}{c+1}\right) \\
+\omega_2&=\cos (\psi) \dot{a}+\sin (\psi) \dot{b}-(a \cos (\psi)+b \sin (\psi))\left(\frac{c}{c+1}\right) \\
+\omega_3&=\frac{b \dot{a}-a \dot{b}}{1+c}+\dot{\psi}
 \end{aligned}
 $$
 
@@ -100,7 +112,10 @@ $$
 q_1&=\frac{1}{\sqrt{2(1-c)}}[-b,1-c,0,a] \\
 q_{\bar{\psi}}&=\left[\cos \frac{\bar{\psi}}{2}, 0,0, \sin \frac{\bar{\psi}}{2}\right] \\
 \bar{\psi}&=\psi+2 \arctan 2(a, b) \\
-q&=q_1 \otimes q_\psi
+q&=q_1 \otimes q_\bar{\psi} \\
+\omega_1&=\sin (\psi) \dot{a}+\cos (\psi) \dot{b}-(a \sin (\psi)+b \cos (\psi))\left(\frac{\dot{c}}{c-1}\right) \\
+\omega_2&=\cos (\psi) \dot{a}-\sin (\psi) \dot{\dot{b}}-(a \cos (\psi)-b \sin (\psi))\left(\frac{\dot{c}}{c-1}\right) \\
+\omega_3&=\frac{b \dot{a}-a \dot{b}}{-1+c}+\dot{\bar{\psi}}
 \end{aligned}
 $$
 

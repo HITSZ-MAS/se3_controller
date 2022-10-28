@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
   <node pkg="se3_controller" type="se3_controller_example_airsim_node" name="se3_controller_example_airsim_node" output="screen">
-    <param name="x" type="double" value="37.47"/>
-    <param name="y" type="double" value="-11.77"/>
-    <param name="z" type="double" value="-0.8"/>
-    <param name="yaw" type="double" value="0.0"/>
+    <param name="x" type="double" value="7.0"/>
+    <param name="y" type="double" value="1.0"/>
+    <param name="z" type="double" value="-2.0"/>
+    <param name="yaw" type="double" value="0"/>
   </node>
 </launch>

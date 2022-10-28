@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.0.2)
 project(se3_controller)
 add_compile_options(-std=c++14)
 
-set(airsim_ros_pkgs_DIR /home/ck1201/workspace/MAS/RMUAV/IntelligentUAVChampionshipSimulator/roswrapper/ros/devel/share/airsim_ros_pkgs/cmake)
-
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   mavros_msgs
@@ -12,11 +10,15 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   tf
-  airsim_ros_pkgs
+  dynamic_reconfigure
+  # airsim_ros_pkgs
 )
 
 find_package(Eigen3 REQUIRED)
 
+generate_dynamic_reconfigure_options(
+  cfg/tune.cfg
+)
 
 catkin_package(
  INCLUDE_DIRS include
@@ -32,13 +34,13 @@ include_directories(
 )
 
 
-add_executable(${PROJECT_NAME}_example_airsim_node 
-  src/se3_example_airsim.cpp
-)
+# add_executable(${PROJECT_NAME}_example_airsim_node 
+#   src/se3_example_airsim.cpp
+# )
 
-target_link_libraries(${PROJECT_NAME}_example_airsim_node
-  ${catkin_LIBRARIES}
-)
+# target_link_libraries(${PROJECT_NAME}_example_airsim_node
+#   ${catkin_LIBRARIES}
+# )
 
 add_executable(${PROJECT_NAME}_example_node 
   src/se3_example.cpp
