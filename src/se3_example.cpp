@@ -96,6 +96,9 @@ private:
 		limit_d_err_v_ = config.limit_d_err_v;
 		limit_d_err_a_ = config.limit_d_err_a;
 
+        ROS_INFO("desire posit: %f %f %f", config.desire_px, config.desire_py, config.desire_pz);
+        ROS_INFO("desire euler: %f %f %f", config.desire_roll, config.desire_pitch, config.desire_yaw);
+
         desired_state_.p(0) = config.desire_px;
         desired_state_.p(1) = config.desire_py;
         desired_state_.p(2) = config.desire_pz;
@@ -162,9 +165,9 @@ private:
         if(se3_controller_.calControl(odom_data_, imu_data_, desired_state_, output)){
             send_cmd(output, true);
             desire_odom_pub_.publish(desire_odom_);
-            // if(state_.mode == mavros_msgs::State::MODE_PX4_OFFBOARD && state_.armed == true){
-            //     se3_controller_.estimateTa(imu_data_.a);
-            // }
+            if(state_.mode == mavros_msgs::State::MODE_PX4_OFFBOARD && state_.armed == true){
+                se3_controller_.estimateTa(imu_data_.a);
+            }
         }
         
         exec_timer_.start();
@@ -207,9 +210,9 @@ public:
 
         hover_percent_ = 0.25;
 
-        desired_state_.p(0) = 0.1746;
-        desired_state_.p(1) = 0.1775;
-        desired_state_.p(2) = 0.8234;
+        desired_state_.p(0) = 0.0;
+        desired_state_.p(1) = 0.0;
+        desired_state_.p(2) = 0.3;
         desired_state_.yaw = 0.0;
 
         se3_controller_.init(hover_percent_);

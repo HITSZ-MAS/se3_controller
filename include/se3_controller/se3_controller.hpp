@@ -509,9 +509,9 @@ public:
 			double K = gamma * P_ * thr;
 			T_a_ = T_a_ + K * (est_a(2) - thr * T_a_);
 			P_ = (1 - K * thr) * P_ / rho_;
-			T_a_ = std::min(T_a_, gravity_ / 0.25);
-			// std::cout << std::endl << "imu: " << est_a.transpose() << std::endl;
-			//printf("%6.3f,%6.3f,%6.3f,%6.3f\n", T_a_, gamma, K, P_);
+			T_a_ = std::max(T_a_, gravity_ / 0.45);
+			// std::cout << "hover per: " << gravity_ / T_a_ << std::endl;
+			// printf("%6.3f,%6.3f,%6.3f,%6.3f\n", T_a_, gamma, K, P_);
 			//fflush(stdout);
 
 			return true;
