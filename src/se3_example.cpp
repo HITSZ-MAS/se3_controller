@@ -1,5 +1,6 @@
 #include <ros/ros.h>
 #include <mavros_msgs/State.h>
+#include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <dynamic_reconfigure/server.h>
 
@@ -12,6 +13,7 @@ private:
     ros::NodeHandle node_;
     ros::Publisher cmd_pub_, desire_odom_pub_;
     ros::Subscriber odom_sub_, imu_sub_, state_sub_, desire_odom_sub_, desire_angle_sub_;
+    ros::ServiceClient set_mode_client_;
     ros::Timer exec_timer_;
     mavros_msgs::State state_;
     Odom_Data_t odom_data_;
@@ -21,13 +23,24 @@ private:
     nav_msgs::Odometry desire_odom_;
     Eigen::Vector3d kp_p_, kp_v_, kp_a_, kp_q_, kp_w_, kd_p_, kd_v_, kd_a_, kd_q_, kd_w_;
     double limit_err_p_, limit_err_v_, limit_err_a_, limit_d_err_p_, limit_d_err_v_, limit_d_err_a_;
-    double hover_percent_;
+    double hover_percent_, max_hover_percent_;
 
     dynamic_reconfigure::Server<se3_controller::se3_dynamic_tuneConfig> dynamic_tune_server_;
     dynamic_reconfigure::Server<se3_controller::se3_dynamic_tuneConfig>::CallbackType dynamic_tune_cb_type_;
 
     void OdomCallback(const nav_msgs::Odometry::ConstPtr &msg){
         odom_data_.feed(msg);
+        bool judge_x = ((odom_data_.p(0) >= 1.3) || (odom_data_.p(0) <= -1.3));
+        bool judge_y = ((odom_data_.p(1) >= 2.3) || (odom_data_.p(1) <= -2.3));
+        bool judge_z = (odom_data_.p(2) >= 1.5);
+        bool judge = (judge_x || judge_y || judge_z);
+        if(judge && state_.mode != mavros_msgs::State::MODE_PX4_LAND){
+        mavros_msgs::SetMode land_set_mode;
+        land_set_mode.request.custom_mode = mavros_msgs::State::MODE_PX4_LAND;
+        if(set_mode_client_.call(land_set_mode) && land_set_mode.response.mode_sent){
+            ROS_WARN("obs Land enabled");
+        }
+    }
     }
 
     void IMUCallback(const sensor_msgs::Imu::ConstPtr &msg){
@@ -179,7 +192,10 @@ public:
         cmd_pub_ = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10);
         desire_odom_pub_ = nh.advertise<nav_msgs::Odometry>("/desire_odom_pub", 10);
 
-        odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/mavros/odometry/in", 10, &SE3_EXAMPLE::OdomCallback, this);
+        set_mode_client_ = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
+
+        // odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/mavros/odometry/in", 10, &SE3_EXAMPLE::OdomCallback, this);
+        odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/mavros/local_position/odom", 10, &SE3_EXAMPLE::OdomCallback, this);
         imu_sub_ = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 10, &SE3_EXAMPLE::IMUCallback, this);
         state_sub_ = nh.subscribe<mavros_msgs::State>("/mavros/state", 10, &SE3_EXAMPLE::StateCallback, this);
         desire_odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/desire_odom", 10, &SE3_EXAMPLE::DesireOdomCallback, this);
@@ -189,33 +205,34 @@ public:
         dynamic_tune_cb_type_ = boost::bind(&SE3_EXAMPLE::DynamicTuneCallback, this, _1, _2);
         dynamic_tune_server_.setCallback(dynamic_tune_cb_type_);
 
-        kp_p_ << 1.5, 1.5, 1.5;
+        kp_p_ << 0.85, 0.85, 1.5;
         kp_v_ << 1.5, 1.5, 1.5;
         kp_a_ << 1.5, 1.5, 1.5;
         kp_q_ << 5.5, 5.5, 0.1;
         kp_w_ << 1.5, 1.5, 0.1;
 
-        kd_p_ << 0.0, 0.0, 0.0;
+        kd_p_ << 0.1, 0.1, 0.0;
         kd_v_ << 0.0, 0.0, 0.0;
         kd_a_ << 0.0, 0.0, 0.0;
         kd_q_ << 0.0, 0.0, 0.0;
         kd_w_ << 0.0, 0.0, 0.0;
 
-        limit_err_p_ = 1.0;
-		limit_err_v_ = 1.0;
+        limit_err_p_ = 3.0;
+		limit_err_v_ = 2.0;
 		limit_err_a_ = 1.0;
-		limit_d_err_p_ = 1.0;
+		limit_d_err_p_ = 3.5;
 		limit_d_err_v_ = 1.0;
 		limit_d_err_a_ = 1.0;
 
         hover_percent_ = 0.25;
+        max_hover_percent_ = 0.75;
 
         desired_state_.p(0) = 0.0;
         desired_state_.p(1) = 0.0;
         desired_state_.p(2) = 0.3;
         desired_state_.yaw = 0.0;
 
-        se3_controller_.init(hover_percent_);
+        se3_controller_.init(hover_percent_, max_hover_percent_);
         se3_controller_.setup(kp_p_, kp_v_, kp_a_, kp_q_, kp_w_,
                                 kd_p_, kd_v_, kd_a_, kd_q_, kd_w_,
                                 limit_err_p_, limit_err_v_, limit_err_a_,

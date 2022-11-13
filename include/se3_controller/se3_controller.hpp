@@ -173,7 +173,7 @@ private:
 	double limit_err_p_, limit_err_v_, limit_err_a_, limit_d_err_p_, limit_d_err_v_, limit_d_err_a_;
 	bool have_last_err_;
 
-	double hover_percent_;
+	double hover_percent_, max_hover_percent_;
 	double T_a_; // normalization constant
 	double P_ = 1e6;
 	const double rho_ = 0.998; // confidence
@@ -330,9 +330,10 @@ public:
 	SE3_CONTROLLER(){};
     ~SE3_CONTROLLER(){};
 
-	void init(double hover_percent){
+	void init(double hover_percent, double max_hover_percent){
 		
 		hover_percent_ = hover_percent;
+		max_hover_percent_ = max_hover_percent;
 		T_a_ = gravity_ / hover_percent_;
 		grav_vec_ << 0.0, 0.0, gravity_;
 
@@ -509,7 +510,7 @@ public:
 			double K = gamma * P_ * thr;
 			T_a_ = T_a_ + K * (est_a(2) - thr * T_a_);
 			P_ = (1 - K * thr) * P_ / rho_;
-			T_a_ = std::max(T_a_, gravity_ / 0.45);
+			T_a_ = std::max(T_a_, gravity_ / max_hover_percent_);
 			// std::cout << "hover per: " << gravity_ / T_a_ << std::endl;
 			// printf("%6.3f,%6.3f,%6.3f,%6.3f\n", T_a_, gamma, K, P_);
 			//fflush(stdout);
