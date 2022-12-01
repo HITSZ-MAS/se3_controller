@@ -24,12 +24,13 @@ private:
     Eigen::Vector3d kp_p_, kp_v_, kp_a_, kp_q_, kp_w_, kd_p_, kd_v_, kd_a_, kd_q_, kd_w_;
     double limit_err_p_, limit_err_v_, limit_err_a_, limit_d_err_p_, limit_d_err_v_, limit_d_err_a_;
     double hover_percent_, max_hover_percent_;
+    bool enu_frame_, vel_in_body_;
 
     dynamic_reconfigure::Server<se3_controller::se3_dynamic_tuneConfig> dynamic_tune_server_;
     dynamic_reconfigure::Server<se3_controller::se3_dynamic_tuneConfig>::CallbackType dynamic_tune_cb_type_;
 
     void OdomCallback(const nav_msgs::Odometry::ConstPtr &msg){
-        odom_data_.feed(msg);
+        odom_data_.feed(msg, enu_frame_, vel_in_body_);
         bool judge_x = ((odom_data_.p(0) >= 1.3) || (odom_data_.p(0) <= -1.3));
         bool judge_y = ((odom_data_.p(1) >= 2.3) || (odom_data_.p(1) <= -2.3));
         bool judge_z = (odom_data_.p(2) >= 1.5);
@@ -44,7 +45,7 @@ private:
     }
 
     void IMUCallback(const sensor_msgs::Imu::ConstPtr &msg){
-        imu_data_.feed(msg);
+        imu_data_.feed(msg, enu_frame_);
     }
 
     void StateCallback(const mavros_msgs::State::ConstPtr &msg){
@@ -189,6 +190,9 @@ public:
     SE3_EXAMPLE(/* args */){};
     ~SE3_EXAMPLE(){};
     void init(ros::NodeHandle &nh){
+        enu_frame_ = true;
+        vel_in_body_ = true;
+
         cmd_pub_ = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10);
         desire_odom_pub_ = nh.advertise<nav_msgs::Odometry>("/desire_odom_pub", 10);
 
@@ -232,7 +236,7 @@ public:
         desired_state_.p(2) = 0.3;
         desired_state_.yaw = 0.0;
 
-        se3_controller_.init(hover_percent_, max_hover_percent_);
+        se3_controller_.init(hover_percent_, max_hover_percent_, enu_frame_, vel_in_body_);
         se3_controller_.setup(kp_p_, kp_v_, kp_a_, kp_q_, kp_w_,
                                 kd_p_, kd_v_, kd_a_, kd_q_, kd_w_,
                                 limit_err_p_, limit_err_v_, limit_err_a_,

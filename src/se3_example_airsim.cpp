@@ -16,14 +16,15 @@ private:
     Desired_State_t desired_state_;
     SE3_CONTROLLER se3_controller_;
     Eigen::Vector3d kp_p_, kp_v_, kp_a_, kp_q_, kp_w_, kd_p_, kd_v_, kd_a_, kd_q_, kd_w_;
-    double hover_percent_;
+    double hover_percent_, max_hover_percent_, limit_err_p, limit_err_v, limit_err_a, limit_d_err_p, limit_d_err_v, limit_d_err_a;
+    bool enu_frame_, vel_in_body_;
 
     void OdomCallback(const nav_msgs::Odometry::ConstPtr &msg){
-        odom_data_.feed(msg);
+        odom_data_.feed(msg, enu_frame_, vel_in_body_);
     }
 
     void IMUCallback(const sensor_msgs::Imu::ConstPtr &msg){
-        imu_data_.feed(msg);
+        imu_data_.feed(msg, enu_frame_);
     }
 
     void execFSMCallback(const ros::TimerEvent &e){
@@ -67,6 +68,9 @@ public:
         desired_state_.p(2) = -desired_state_.p(2);
         desired_state_.yaw = desired_state_.yaw;
 
+        enu_frame_ = false;
+        vel_in_body_ = false;
+
         ar_cmd_pub_ = nh.advertise<airsim_ros_pkgs::AngleRateThrottle>("/airsim_node/drone_1/angle_rate_throttle_frame", 10);
         pose_cmd_pub_ = nh.advertise<airsim_ros_pkgs::PoseCmd>("/airsim_node/drone_1/pose_cmd_body_frame", 10);
 
@@ -87,9 +91,18 @@ public:
         kd_q_ << 0.0, 0.0, 0.0;
         kd_w_ << 0.0, 0.0, 0.0;
 
-        hover_percent_ = 0.593593;
+        limit_err_p = 1.0;
+        limit_err_v = 1.0;
+        limit_err_a = 1.0;
+        limit_d_err_p = 1.0;
+        limit_d_err_v = 1.0;
+        limit_d_err_a = 1.0;
 
-        se3_controller_.init(kp_p_, kp_v_, kp_a_, kp_q_, kp_w_, kd_p_, kd_v_, kd_a_, kd_q_, kd_w_, hover_percent_);
+        hover_percent_ = 0.593593;
+        max_hover_percent_ = 0.7;
+
+        se3_controller_.init(hover_percent_, max_hover_percent_, enu_frame_, vel_in_body_);
+        se3_controller_.setup(kp_p_, kp_v_, kp_a_, kp_q_, kp_w_, kd_p_, kd_v_, kd_a_, kd_q_, kd_w_, limit_err_p, limit_err_v, limit_err_a, limit_d_err_p, limit_d_err_v, limit_d_err_a);
     }
 };
 

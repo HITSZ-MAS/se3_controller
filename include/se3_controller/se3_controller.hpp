@@ -24,7 +24,7 @@ struct Odom_Data_t{
 	Odom_Data_t(){
 		recv_new_msg = false;
 	}
-	void feed(nav_msgs::OdometryConstPtr pMsg){
+	void feed(nav_msgs::OdometryConstPtr pMsg, bool enu_frame, bool vel_in_body){
 		msg = *pMsg;
 		rcv_stamp = ros::Time::now();
 		recv_new_msg = true;
@@ -46,21 +46,20 @@ struct Odom_Data_t{
 		w(1) = msg.twist.twist.angular.y;
 		w(2) = msg.twist.twist.angular.z;
 
-		#ifdef AIRSIM
-		Eigen::Matrix3d R_mid;
-		R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
-		Eigen::Quaterniond q_mid(R_mid);
+		if(!enu_frame){
+			Eigen::Matrix3d R_mid;
+			R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
+			Eigen::Quaterniond q_mid(R_mid);
 
-		p = q_mid.toRotationMatrix() * p;
-		v = q_mid.toRotationMatrix() * v;
-		q = q_mid * q * q_mid;
-		q.normalize();
-		w = q_mid.toRotationMatrix() * w;
-		#endif
+			p = q_mid.toRotationMatrix() * p;
+			v = q_mid.toRotationMatrix() * v;
+			q = q_mid * q * q_mid;
+			q.normalize();
+			w = q_mid.toRotationMatrix() * w;
+		}
 
-		#ifdef VEL_IN_BODY 
-		v = q.toRotationMatrix() * v;
-		#endif
+		if(vel_in_body)
+			v = q.toRotationMatrix() * v;
 	}
 };
 
@@ -124,7 +123,7 @@ struct Imu_Data_t{
 	Imu_Data_t(){
 		recv_new_msg = false;
 	}
-	void feed(sensor_msgs::ImuConstPtr pMsg){
+	void feed(sensor_msgs::ImuConstPtr pMsg, bool enu_frame){
 		msg = *pMsg;
 		rcv_stamp = ros::Time::now();
 		recv_new_msg = true;
@@ -142,16 +141,16 @@ struct Imu_Data_t{
 		w(1) = msg.angular_velocity.y;
 		w(2) = msg.angular_velocity.z;
 
-		#ifdef AIRSIM
-		Eigen::Matrix3d R_mid;
-		R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
-		Eigen::Quaterniond q_mid(R_mid);
+		if(!enu_frame){
+			Eigen::Matrix3d R_mid;
+			R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
+			Eigen::Quaterniond q_mid(R_mid);
 
-		a = q_mid.toRotationMatrix() * a;
-		q = q_mid * q * q_mid;
-		q.normalize();
-		w = q_mid.toRotationMatrix() * w;
-		#endif
+			a = q_mid.toRotationMatrix() * a;
+			q = q_mid * q * q_mid;
+			q.normalize();
+			w = q_mid.toRotationMatrix() * w;
+		}
 
 		// check the frequency
 		// static int one_min_count = 9999;
@@ -171,7 +170,7 @@ class SE3_CONTROLLER
 private:
 	Eigen::Vector3d Kp_p_, Kp_v_, Kp_a_, Kp_q_, Kp_w_, Kd_p_, Kd_v_, Kd_a_, Kd_q_, Kd_w_;
 	double limit_err_p_, limit_err_v_, limit_err_a_, limit_d_err_p_, limit_d_err_v_, limit_d_err_a_;
-	bool have_last_err_;
+	bool have_last_err_, enu_frame_, vel_in_body_;
 
 	double hover_percent_, max_hover_percent_;
 	double T_a_; // normalization constant
@@ -187,27 +186,7 @@ private:
 		desired_odom.p = desired_state.p;
 		desired_odom.v = desired_state.v;
 
-		// #ifdef ACHIEVE_POINT
-		// double roll,pitch,yaw,yaw_imu;
-		// double yaw_odom = fromQuaternion2yaw(odom_data.q);
-		// double sin = std::sin(yaw_odom);
-		// double cos = std::cos(yaw_odom);
-		// roll = (acc(0) * sin - acc(1) * cos ) / gravity_;
-		// pitch = (acc(0) * cos + acc(1) * sin ) / gravity_;
-		// // yaw = fromQuaternion2yaw(des.q);
-		// // yaw_imu = fromQuaternion2yaw(imu.q);
-		// // Eigen::Quaterniond q = Eigen::AngleAxisd(yaw,Eigen::Vector3d::UnitZ())
-		// //   * Eigen::AngleAxisd(roll,Eigen::Vector3d::UnitX())
-		// //   * Eigen::AngleAxisd(pitch,Eigen::Vector3d::UnitY());
-		// Eigen::Quaterniond q = Eigen::AngleAxisd(desired_state.yaw,Eigen::Vector3d::UnitZ())
-		// 	* Eigen::AngleAxisd(pitch,Eigen::Vector3d::UnitY())
-		// 	* Eigen::AngleAxisd(roll,Eigen::Vector3d::UnitX());
-		// // q = imu_data.q * odom_data.q.inverse() * q;
-		// desired_odom.q = q;
-		// desired_odom.w = odom_data.w;
-		// #endif
 		// TODO check
-		// #ifdef TRACK_TRAJ
 		Eigen::Vector3d xc(cos(desired_state.yaw), sin(desired_state.yaw), 0);
 		Eigen::Vector3d yc(-sin(desired_state.yaw), cos(desired_state.yaw), 0);
 
@@ -216,7 +195,6 @@ private:
 		xb.normalize();
 		Eigen::Vector3d yb = zb.cross(xb);
 		yb.normalize();
-		
 		
 		// Eigen::Vector3d xb = yc.cross(desired_state.a);
 		// xb.normalize();
@@ -267,47 +245,6 @@ private:
 		}
 	}
 
-	void normalizeWithGrad(const Eigen::Vector3d &x, const Eigen::Vector3d &xd, Eigen::Vector3d &xNor, Eigen::Vector3d &xNord) const
-	{
-		const double xSqrNorm = x.squaredNorm();
-		const double xNorm = sqrt(xSqrNorm);
-		xNor = x / xNorm;
-		xNord = (xd - x * (x.dot(xd) / xSqrNorm)) / xNorm;
-		return;
-	}
-
-	void computeFlatInput_WZP(Desired_State_t desired_state, Odom_Data_t &desired_odom, Odom_Data_t odom_data) const
-	{
-		static Eigen::Vector3d omg_old(0.0, 0.0, 0.0);
-		Eigen::Vector3d zb, zbd;
-		normalizeWithGrad(desired_state.a, desired_state.j, zb, zbd);
-		double syaw = sin(desired_state.yaw);
-		double cyaw = cos(desired_state.yaw);
-		Eigen::Vector3d xc(cyaw, syaw, 0.0);
-		Eigen::Vector3d xcd(-syaw * desired_state.yaw_rate, cyaw * desired_state.yaw_rate, 0.0);
-		Eigen::Vector3d yc = zb.cross(xc);
-		if (yc.norm() < kAlmostZeroValueThreshold_){
-			ROS_WARN("Conor case, pitch is close to 90 deg");
-			desired_odom.q = odom_data.q;
-			desired_odom.w = omg_old;
-		}
-		else{
-			Eigen::Vector3d ycd = zbd.cross(xc) + zb.cross(xcd);
-			Eigen::Vector3d yb, ybd;
-			normalizeWithGrad(yc, ycd, yb, ybd);
-			Eigen::Vector3d xb = yb.cross(zb);
-			Eigen::Vector3d xbd = ybd.cross(zb) + yb.cross(zbd);
-			desired_odom.w(0) = (zb.dot(ybd) - yb.dot(zbd)) / 2.0;
-			desired_odom.w(1) = (xb.dot(zbd) - zb.dot(xbd)) / 2.0;
-			desired_odom.w(2) = (yb.dot(xbd) - xb.dot(ybd)) / 2.0;
-			Eigen::Matrix3d rotM;
-			rotM << xb, yb, zb;
-			desired_odom.q = Eigen::Quaterniond(rotM);
-			omg_old = desired_odom.w;
-		}
-		return;
-	}
-
 	void limitErr(Eigen::Vector3d &err, double low, double upper){
 		err(0) = std::max(std::min(err(0), upper), low);
 		err(1) = std::max(std::min(err(1), upper), low);
@@ -330,10 +267,12 @@ public:
 	SE3_CONTROLLER(){};
     ~SE3_CONTROLLER(){};
 
-	void init(double hover_percent, double max_hover_percent){
+	void init(double hover_percent, double max_hover_percent, bool enu_frame, bool vel_in_body){
 		
 		hover_percent_ = hover_percent;
 		max_hover_percent_ = max_hover_percent;
+		enu_frame_ = enu_frame;
+		vel_in_body_ = vel_in_body;
 		T_a_ = gravity_ / hover_percent_;
 		grav_vec_ << 0.0, 0.0, gravity_;
 
@@ -413,7 +352,6 @@ public:
 		Odom_Data_t desired_odom;
 		// computeFlatInput(desired_state, desired_odom);
 		computeFlatInput_Hopf_Fibration(desired_state, desired_odom);
-		// computeFlatInput_WZP(desired_state, desired_odom, odom_data);
 		output.q = imu_data.q * odom_data.q.inverse() * desired_odom.q; // Align with FCU frame, from odom to imu frame
 		
 		// printf("desired q: (%lf,%lf,%lf,%lf)\n", desired_odom.q.w(), desired_odom.q.x(), desired_odom.q.y(), desired_odom.q.z());
@@ -434,15 +372,14 @@ public:
 
 		output.bodyrates = desired_odom.w + err_br;
 
-		#ifdef AIRSIM
-		Eigen::Matrix3d R_mid;
-		R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
-		Eigen::Quaterniond q_mid(R_mid.inverse());
-		output.q = q_mid * output.q * q_mid;
-		output.bodyrates = q_mid * output.bodyrates;
-		#endif
-		
-
+		if(!enu_frame_){
+			Eigen::Matrix3d R_mid;
+			R_mid << 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0;
+			Eigen::Quaterniond q_mid(R_mid.inverse());
+			output.q = q_mid * output.q * q_mid;
+			output.bodyrates = q_mid * output.bodyrates;
+		}
+	
 		// Eigen::Quaterniond err_q = odom_data.q * (desired_odom.q.inverse());
 		// // limitErr(err_q, -1.0, 1.0);
 		// // Eigen::Vector3d err_w = odom_data.w - odom_data.q.matrix().transpose() * desired_odom.q.matrix() * desired_odom.w;
@@ -488,12 +425,10 @@ public:
 			std::pair<ros::Time, double> t_t = timed_thrust_.front();
 			double time_passed = (t_now - t_t.first).toSec();
 			if (time_passed > 0.045){ // 45ms
-				// printf("continue, time_passed=%f\n", time_passed);
 				timed_thrust_.pop();
 				continue;
 			}
 			if (time_passed < 0.035){ // 35ms
-				// printf("skip, time_passed=%f\n", time_passed);
 				return false;
 			}
 
@@ -511,7 +446,6 @@ public:
 			T_a_ = T_a_ + K * (est_a(2) - thr * T_a_);
 			P_ = (1 - K * thr) * P_ / rho_;
 			T_a_ = std::max(T_a_, gravity_ / max_hover_percent_);
-			// std::cout << "hover per: " << gravity_ / T_a_ << std::endl;
 			// printf("%6.3f,%6.3f,%6.3f,%6.3f\n", T_a_, gamma, K, P_);
 			//fflush(stdout);
 
