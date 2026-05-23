@@ -159,18 +159,18 @@ where $T_a$ is the normalization constant, which is determined by the physical c
 $$
 \begin{aligned}
 x_k&=T_{a,k} \\
-z_k&=a_z=t_{cmd}*T_{a,k}
+z_k&=a_z=t_{cmd}\ T_{a,k}
 \end{aligned}
 $$
 
-Then
+Then (with $Q = (1/\rho-1) \hat{P}_{k-1}$ and $R=1$, $\rho$ is the forgetting factor)
 
 $$
 \begin{aligned}
-\breve{P}_k&=1/\rho \\
-K_k&=\frac{\breve{P}_k\cdot t_{cmd}}{t_{cmd}\times \breve{P}_k\cdot t_{cmd}+\rho} \\
+\breve{P}_k&=(1/\rho) \hat{P}_{k-1}\\
+K_k&=\frac{\breve{P}_k\cdot t_{cmd}}{t_{cmd} \breve{P}_k\cdot t_{cmd}+1}= \frac{\hat{P}_{k-1}\cdot t_{cmd}}{t_{cmd} \hat{P}_{k-1}\cdot t_{cmd}+\rho}\\
 \hat{T}_{a,k}&=\breve{T}_{a,k}+K_k(a_{z,imu}-t_{cmd} \breve{T}_{a,k}) \\
-P_k&=(1-K_k\cdot t_{cmd})\cdot \breve{P}_k \\
+\hat{P}_k&=(1-K_k\cdot t_{cmd})\cdot \breve{P}_k=(1-K_k\cdot t_{cmd})\cdot \hat{P}_{k-1}/\rho \\
 \end{aligned}
 $$
 
